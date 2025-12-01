@@ -51,15 +51,37 @@ export const handler: Handlers<Data, FreshContextState> = {
       const zipStream = zipProcess.stdout;
 
       // Monitor process errors and log them (stream will end on error)
-      zipProcess.status.then((status) => {
+      zipProcess.status.then(async (status) => {
         if (status.code !== 0) {
           console.error('Zip command failed with code:', status.code);
-          // Read stderr for error details
-          zipProcess.stderr.getReader().read().then(({ value }) => {
-            if (value) {
-              console.error('Zip stderr:', new TextDecoder().decode(value));
+          // Read and log stderr for error details
+          try {
+            const stderrReader = zipProcess.stderr.getReader();
+            try {
+              const chunks: Uint8Array[] = [];
+              while (true) {
+                const { done, value } = await stderrReader.read();
+                if (done) break;
+                if (value) chunks.push(value);
+              }
+              if (chunks.length > 0) {
+                // Concatenate chunks
+                const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+                const combined = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) {
+                  combined.set(chunk, offset);
+                  offset += chunk.length;
+                }
+                const errorText = new TextDecoder().decode(combined);
+                console.error('Zip stderr:', errorText);
+              }
+            } finally {
+              stderrReader.releaseLock();
             }
-          });
+          } catch (error) {
+            console.error('Error reading stderr:', error);
+          }
         }
       }).catch((error) => {
         console.error('Zip process error:', error);
