@@ -47,19 +47,25 @@ export const handler: Handlers<Data, FreshContextState> = {
         stderr: 'piped',
       }).spawn();
 
-      // Create a readable stream from the process stdout
-      const stream = zipProcess.stdout;
+      // Get the zip stream from the process stdout
+      const zipStream = zipProcess.stdout;
 
-      // Handle process errors asynchronously
+      // Monitor process errors and log them (stream will end on error)
       zipProcess.status.then((status) => {
         if (status.code !== 0) {
           console.error('Zip command failed with code:', status.code);
+          // Read stderr for error details
+          zipProcess.stderr.getReader().read().then(({ value }) => {
+            if (value) {
+              console.error('Zip stderr:', new TextDecoder().decode(value));
+            }
+          });
         }
       }).catch((error) => {
         console.error('Zip process error:', error);
       });
 
-      return new Response(stream, {
+      return new Response(zipStream, {
         status: 200,
         headers: {
           'content-type': 'application/zip',
