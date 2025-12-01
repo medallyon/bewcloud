@@ -39,25 +39,27 @@ export const handler: Handlers<Data, FreshContextState> = {
       const userRootPath = join(filesRootPath, context.state.user.id);
       const fullDirectoryPath = join(userRootPath, directoryPath);
 
-      // Use the zip command to create the archive
+      // Use the zip command to create the archive with streaming
       const zipProcess = new Deno.Command('zip', {
         args: ['-r', '-', '.'],
         cwd: fullDirectoryPath,
         stdout: 'piped',
         stderr: 'piped',
+      }).spawn();
+
+      // Create a readable stream from the process stdout
+      const stream = zipProcess.stdout;
+
+      // Handle process errors asynchronously
+      zipProcess.status.then((status) => {
+        if (status.code !== 0) {
+          console.error('Zip command failed with code:', status.code);
+        }
+      }).catch((error) => {
+        console.error('Zip process error:', error);
       });
 
-      const { code, stdout, stderr } = await zipProcess.output();
-
-      if (code !== 0) {
-        const errorText = new TextDecoder().decode(stderr);
-
-        console.error('Zip command failed:', errorText);
-
-        return new Response('Error creating zip archive', { status: 500 });
-      }
-
-      return new Response(stdout, {
+      return new Response(stream, {
         status: 200,
         headers: {
           'content-type': 'application/zip',
