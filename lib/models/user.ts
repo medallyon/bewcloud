@@ -16,10 +16,6 @@ export class UserModel {
     return Boolean(user);
   }
 
-  static async getFirst() {
-    return (await db.query<User>(sql`SELECT * FROM "bewcloud_users" ORDER BY "created_at" ASC LIMIT 1`))[0];
-  }
-
   static async getByEmail(email: string) {
     const lowercaseEmail = email.toLowerCase().trim();
 
