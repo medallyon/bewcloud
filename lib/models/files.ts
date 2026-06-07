@@ -4,7 +4,13 @@ import { Cookie, getCookies, setCookie } from '@std/http';
 
 import { AppConfig } from '/lib/config.ts';
 import { Directory, DirectoryFile, FileShare } from '/lib/types.ts';
-import { sortDirectoriesByName, sortEntriesByName, sortFilesByName, TRASH_PATH } from '/lib/utils/files.ts';
+import {
+  bytesFromHumanFileSize,
+  sortDirectoriesByName,
+  sortEntriesByName,
+  sortFilesByName,
+  TRASH_PATH,
+} from '/public/ts/utils/files.ts';
 import Database, { sql } from '/lib/interfaces/database.ts';
 import {
   COOKIE_NAME as AUTH_COOKIE_NAME,
@@ -14,7 +20,7 @@ import {
   resolveCookieDomain,
   verifyAuthJwt,
 } from '/lib/auth.ts';
-import { isRunningLocally } from '/lib/utils/misc.ts';
+import { isRunningLocally } from '/public/ts/utils/misc.ts';
 
 const COOKIE_NAME = `${AUTH_COOKIE_NAME}-file-share`;
 
@@ -39,12 +45,14 @@ export class DirectoryModel {
     for (const entry of directoryEntries) {
       const stat = await Deno.stat(join(rootPath, entry.name));
 
+      const directorySize = await getDirectorySize(join(rootPath, entry.name));
+
       const directory: Directory = {
         user_id: userId,
         parent_path: path,
         directory_name: entry.name,
         has_write_access: true,
-        size_in_bytes: stat.size,
+        size_in_bytes: directorySize || stat.size,
         file_share_id: fileShares.find((fileShare) => fileShare.file_path === `${join(path, entry.name)}/`)?.id || null,
         updated_at: stat.mtime || new Date(),
         created_at: stat.birthtime || new Date(),
@@ -141,12 +149,14 @@ export class DirectoryModel {
           parentPath = '/';
         }
 
+        const directorySize = await getDirectorySize(join(rootPath, relativeDirectoryPath));
+
         const directory: Directory = {
           user_id: userId,
           parent_path: parentPath,
           directory_name: directoryName,
           has_write_access: true,
-          size_in_bytes: stat.size,
+          size_in_bytes: directorySize || stat.size,
           file_share_id: fileShares.find((fileShare) =>
             fileShare.file_path === `${join(relativeDirectoryPath, directoryName)}/`
           )?.id || null,
@@ -598,7 +608,11 @@ export async function ensureUserPathIsValidAndSecurelyAccessible(userId: string,
 
   const resolvedFullPath = `${resolve(fullPath)}/`;
 
-  if (!resolvedFullPath.startsWith(userRootPath)) {
+  // Normalize path separators for consistent comparison on Windows
+  const normalizedUserRootPath = userRootPath.replaceAll('\\', '/');
+  const normalizedResolvedFullPath = resolvedFullPath.replaceAll('\\', '/');
+
+  if (!normalizedResolvedFullPath.startsWith(normalizedUserRootPath)) {
     throw new Error('Invalid file path');
   }
 }
@@ -697,12 +711,25 @@ async function deleteDirectoryOrFile(userId: string, path: string, name: string)
 
   const rootPath = join(await AppConfig.getFilesRootPath(), userId, path);
 
+  const fileShares = (await AppConfig.isPublicFileSharingAllowed())
+    ? await FileShareModel.getByParentFilePath(userId, path)
+    : [];
+
+  const fileSharesForPath = fileShares.filter((fileShare) =>
+    fileShare.file_path === `${join(path, name)}/` || fileShare.file_path === join(path, name)
+  );
+
   try {
     if (path.startsWith(TRASH_PATH)) {
       await Deno.remove(join(rootPath, name), { recursive: true });
     } else {
       const trashPath = join(await AppConfig.getFilesRootPath(), userId, TRASH_PATH);
       await Deno.rename(join(rootPath, name), join(trashPath, name));
+    }
+
+    // Delete all file shares for this path
+    for (const fileShare of fileSharesForPath) {
+      await FileShareModel.delete(fileShare.id);
     }
   } catch (error) {
     console.error(error);
@@ -746,4 +773,63 @@ export async function getPathInfo(userId: string, path: string): Promise<{ isDir
     isDirectory: stat.isDirectory,
     isFile: stat.isFile,
   };
+}
+
+async function getDirectorySizeFallback(path: string): Promise<number> {
+  let totalSize = 0;
+  try {
+    for await (const entry of Deno.readDir(path)) {
+      const entryPath = join(path, entry.name);
+      const stat = await Deno.lstat(entryPath);
+      if (stat.isDirectory) {
+        totalSize += await getDirectorySizeFallback(entryPath);
+      } else {
+        totalSize += stat.size;
+      }
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  return totalSize;
+}
+
+// NOTE: We're using `-h` (human readable) and parsing the output because that's more stable than `-B 1B` across different systems for a reliable byte size.
+async function getDirectorySize(path: string): Promise<number> {
+  try {
+    const controller = new AbortController();
+    const commandTimeout = setTimeout(() => controller.abort(), 5_000);
+
+    const command = new Deno.Command(`du`, {
+      args: [
+        `-sh`,
+        path,
+      ],
+      signal: controller.signal,
+    });
+
+    const { code, stdout, stderr } = await command.output();
+
+    if (commandTimeout) {
+      clearTimeout(commandTimeout);
+    }
+
+    if (code !== 0) {
+      if (stderr) {
+        throw new Error(new TextDecoder().decode(stderr));
+      }
+
+      throw new Error(`Unknown error running "du"`);
+    }
+
+    const output = new TextDecoder().decode(stdout);
+
+    const value = output.split('\t')[0].trim();
+
+    const number = Number.parseFloat(value.match(/\d+(\.\d+)?/)?.[0] || '0');
+    const unit = value.match(/[A-Z]+/)?.[0] || 'B'.toUpperCase();
+
+    return bytesFromHumanFileSize(`${number} ${unit}B`);
+  } catch {
+    return getDirectorySizeFallback(path);
+  }
 }
