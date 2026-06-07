@@ -3,6 +3,7 @@ import { join } from '@std/path';
 
 import { AppConfig } from '/lib/config.ts';
 import { ensureUserPathIsValidAndSecurelyAccessible } from '/lib/models/files.ts';
+import { zipDirectoryAsResponse } from '/lib/utils/files.ts';
 
 async function get({ request, user }: RequestHandlerParams) {
   const config = await AppConfig.getConfig();
@@ -38,32 +39,7 @@ async function get({ request, user }: RequestHandlerParams) {
     const userRootPath = join(filesRootPath, user!.id);
     const fullDirectoryPath = join(userRootPath, directoryPath);
 
-    // Use the zip command to create the archive
-    const zipProcess = new Deno.Command('zip', {
-      args: ['-r', '-', '.'],
-      cwd: fullDirectoryPath,
-      stdout: 'piped',
-      stderr: 'piped',
-    });
-
-    const { code, stdout, stderr } = await zipProcess.output();
-
-    if (code !== 0) {
-      const errorText = new TextDecoder().decode(stderr);
-
-      console.error('Zip command failed:', errorText);
-
-      return new Response('Error creating zip archive', { status: 500 });
-    }
-
-    return new Response(stdout, {
-      status: 200,
-      headers: {
-        'content-type': 'application/zip',
-        'content-disposition': `attachment; filename="${name}.zip"`,
-        'cache-control': 'no-cache, no-store, must-revalidate',
-      },
-    });
+    return await zipDirectoryAsResponse(fullDirectoryPath, name);
   } catch (error) {
     console.error('Error creating directory zip:', error);
 
