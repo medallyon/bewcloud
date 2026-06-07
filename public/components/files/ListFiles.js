@@ -76,7 +76,7 @@ export default function ListFiles({
   }, "Last update"), isShowingNotes || isShowingPhotos ? null : h("th", {
     scope: "col",
     class: "px-6 py-4 font-medium text-white w-32"
-  }, "Size"), isShowingPhotos || fileShareId ? null : h("th", {
+  }, "Size"), isShowingPhotos || fileShareId && typeof onClickDownloadDirectory === 'undefined' ? null : h("th", {
     scope: "col",
     class: "px-6 py-4 font-medium text-white w-24"
   }))), h("tbody", {
@@ -108,7 +108,21 @@ export default function ListFiles({
       class: "px-6 py-4 text-slate-200"
     }, dateFormat.format(new Date(directory.updated_at))), isShowingNotes || isShowingPhotos ? null : h("td", {
       class: "px-6 py-4 text-slate-200"
-    }, humanFileSize(directory.size_in_bytes)), isShowingPhotos || fileShareId ? null : h("td", {
+    }, humanFileSize(directory.size_in_bytes)), isShowingPhotos ? null : fileShareId ? typeof onClickDownloadDirectory === 'undefined' ? null : h("td", {
+      class: "px-6 py-4"
+    }, h("section", {
+      class: "flex items-center justify-end w-32"
+    }, h("span", {
+      class: "invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2",
+      onClick: () => onClickDownloadDirectory(directory.parent_path, directory.directory_name)
+    }, h("img", {
+      src: "/public/images/download.svg",
+      class: "white drop-shadow-md",
+      width: 18,
+      height: 18,
+      alt: "Download directory as zip",
+      title: "Download directory as zip"
+    })))) : h("td", {
       class: "px-6 py-4"
     }, fullPath === TRASH_PATH || typeof onClickOpenRenameDirectory === 'undefined' || typeof onClickOpenMoveDirectory === 'undefined' ? null : h("section", {
       class: "flex items-center justify-end w-32"
@@ -200,7 +214,9 @@ export default function ListFiles({
     class: "px-6 py-4 text-slate-200"
   }, dateFormat.format(new Date(file.updated_at))), isShowingNotes ? null : h("td", {
     class: "px-6 py-4 text-slate-200"
-  }, humanFileSize(file.size_in_bytes)), isShowingPhotos || fileShareId ? null : h("td", {
+  }, humanFileSize(file.size_in_bytes)), isShowingPhotos ? null : fileShareId ? typeof onClickDownloadDirectory === 'undefined' ? null : h("td", {
+    class: "px-6 py-4"
+  }) : h("td", {
     class: "px-6 py-4"
   }, h("section", {
     class: "flex items-center justify-end w-24"

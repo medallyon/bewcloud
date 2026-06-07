@@ -476,12 +476,10 @@ export default function MainFiles(
   }
 
   function onClickDownloadDirectory(parentPath: string, name: string) {
-    // Create download URL with proper path encoding
-    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(parentPath)}&name=${
-      encodeURIComponent(name)
-    }`;
+    const downloadUrl = fileShareId
+      ? `/file-share/${fileShareId}/download-directory?path=${encodeURIComponent(parentPath)}&name=${encodeURIComponent(name)}`
+      : `/api/files/download-directory?parentPath=${encodeURIComponent(parentPath)}&name=${encodeURIComponent(name)}`;
 
-    // Create a temporary anchor element to trigger download
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.download = `${name}.zip`;

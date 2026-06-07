@@ -332,7 +332,7 @@ export default function MainFiles({
     moveDirectoryOrFileModal.value = null;
   }
   function onClickDownloadDirectory(parentPath, name) {
-    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(parentPath)}&name=${encodeURIComponent(name)}`;
+    const downloadUrl = fileShareId ? `/file-share/${fileShareId}/download-directory?path=${encodeURIComponent(parentPath)}&name=${encodeURIComponent(name)}` : `/api/files/download-directory?parentPath=${encodeURIComponent(parentPath)}&name=${encodeURIComponent(name)}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.download = `${name}.zip`;

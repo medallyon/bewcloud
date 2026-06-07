@@ -111,7 +111,7 @@ export default function ListFiles(
             {isShowingNotes || isShowingPhotos
               ? null
               : <th scope='col' class='px-6 py-4 font-medium text-white w-32'>Size</th>}
-            {isShowingPhotos || fileShareId
+            {isShowingPhotos || (fileShareId && typeof onClickDownloadDirectory === 'undefined')
               ? null
               : <th scope='col' class='px-6 py-4 font-medium text-white w-24'></th>}
           </tr>
@@ -161,7 +161,27 @@ export default function ListFiles(
                     {humanFileSize(directory.size_in_bytes)}
                   </td>
                 )}
-                {isShowingPhotos || fileShareId ? null : (
+                {isShowingPhotos ? null : fileShareId ? (
+                  typeof onClickDownloadDirectory === 'undefined' ? null : (
+                    <td class='px-6 py-4'>
+                      <section class='flex items-center justify-end w-32'>
+                        <span
+                          class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
+                          onClick={() => onClickDownloadDirectory(directory.parent_path, directory.directory_name)}
+                        >
+                          <img
+                            src='/public/images/download.svg'
+                            class='white drop-shadow-md'
+                            width={18}
+                            height={18}
+                            alt='Download directory as zip'
+                            title='Download directory as zip'
+                          />
+                        </span>
+                      </section>
+                    </td>
+                  )
+                ) : (
                   <td class='px-6 py-4'>
                     {(fullPath === TRASH_PATH || typeof onClickOpenRenameDirectory === 'undefined' ||
                         typeof onClickOpenMoveDirectory === 'undefined')
@@ -306,7 +326,9 @@ export default function ListFiles(
                   {humanFileSize(file.size_in_bytes)}
                 </td>
               )}
-              {isShowingPhotos || fileShareId ? null : (
+              {isShowingPhotos ? null : fileShareId ? (
+                typeof onClickDownloadDirectory === 'undefined' ? null : <td class='px-6 py-4'></td>
+              ) : (
                 <td class='px-6 py-4'>
                   <section class='flex items-center justify-end w-24'>
                     {typeof onClickOpenRenameFile === 'undefined' ? null : (

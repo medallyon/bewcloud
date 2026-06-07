@@ -258,6 +258,10 @@ const routes: Routes = {
   dashboard: createPageRouteHandler('dashboard.ts', '/dashboard'),
   dav: createPageRouteHandler('dav.ts', '/dav/:filePath*{/}?'),
   expenses: createPageRouteHandler('expenses.ts', '/expenses'),
+  downloadDirectoryFileShare: createPageRouteHandler(
+    'file-share/[fileShareId]/download-directory.ts',
+    '/file-share/:fileShareId/download-directory',
+  ),
   openFileShare: createPageRouteHandler(
     'file-share/[fileShareId]/open/[fileName].ts',
     '/file-share/:fileShareId/open/:fileName',

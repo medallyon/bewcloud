@@ -19,6 +19,7 @@ interface Data {
   currentPath: string;
   baseUrl: string;
   fileShareId?: string;
+  areDirectoryDownloadsAllowed: boolean;
 }
 
 async function get({ request, match, session, isRunningLocally }: RequestHandlerParams) {
@@ -33,6 +34,8 @@ async function get({ request, match, session, isRunningLocally }: RequestHandler
   if (!isPublicFileSharingAllowed) {
     throw new Error('NotFound');
   }
+
+  const areDirectoryDownloadsAllowed = await AppConfig.areDirectoryDownloadsAllowedForPublicShares();
 
   const baseUrl = (await AppConfig.getConfig()).auth.baseUrl;
 
@@ -124,6 +127,7 @@ async function get({ request, match, session, isRunningLocally }: RequestHandler
     currentPath: publicCurrentPath,
     baseUrl,
     fileShareId,
+    areDirectoryDownloadsAllowed,
   });
 
   return basicLayoutResponse(htmlContent, {
@@ -136,12 +140,13 @@ async function get({ request, match, session, isRunningLocally }: RequestHandler
   });
 }
 
-function defaultHtmlContent({ shareDirectories, shareFiles, currentPath, baseUrl, fileShareId }: {
+function defaultHtmlContent({ shareDirectories, shareFiles, currentPath, baseUrl, fileShareId, areDirectoryDownloadsAllowed }: {
   shareDirectories: Directory[];
   shareFiles: DirectoryFile[];
   currentPath: string;
   baseUrl: string;
   fileShareId: string;
+  areDirectoryDownloadsAllowed: boolean;
 }) {
   return html`
     <main id="main">
@@ -168,7 +173,7 @@ function defaultHtmlContent({ shareDirectories, shareFiles, currentPath, baseUrl
         initialPath: ${JSON.stringify(currentPath)},
         baseUrl: ${JSON.stringify(baseUrl)},
         isFileSharingAllowed: true,
-        areDirectoryDownloadsAllowed: false,
+        areDirectoryDownloadsAllowed: ${JSON.stringify(areDirectoryDownloadsAllowed)},
         fileShareId: ${JSON.stringify(fileShareId)},
       });
 

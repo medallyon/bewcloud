@@ -175,6 +175,8 @@ export interface Config {
     allowPublicSharing: boolean;
     /** If true, directories can be downloaded as zip files */
     allowDirectoryDownloads: boolean;
+    /** If true, directories in public file shares can be downloaded as zip files (requires allowDirectoryDownloads to also be true) */
+    allowDirectoryDownloadsForPublicShares: boolean;
     /** The maximum upload size in megabytes. Overrides the core.maxRequestSizeInMegabytes setting on /dav and /api/files/upload endpoints. */
     maxUploadSizeInMegabytes: number;
   };
