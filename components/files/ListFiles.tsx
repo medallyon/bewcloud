@@ -1,7 +1,8 @@
 import { join } from '@std/path';
+import type { ComponentChildren } from 'preact';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { humanFileSize, TRASH_PATH } from '/lib/utils/files.ts';
+import { humanFileSize, SortColumn, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
 
 interface ListFilesProps {
   directories: Directory[];
@@ -22,6 +23,9 @@ interface ListFilesProps {
   isShowingNotes?: boolean;
   isShowingPhotos?: boolean;
   fileShareId?: string;
+  sortBy?: SortColumn;
+  sortOrder?: SortOrder;
+  onClickSort?: (column: SortColumn) => void;
 }
 
 export default function ListFiles(
@@ -44,6 +48,9 @@ export default function ListFiles(
     isShowingNotes,
     isShowingPhotos,
     fileShareId,
+    sortBy = 'name',
+    sortOrder = 'asc',
+    onClickSort,
   }: ListFilesProps,
 ) {
   const dateFormatOptions: Intl.DateTimeFormatOptions = {
@@ -56,6 +63,63 @@ export default function ListFiles(
   };
 
   const dateFormat = new Intl.DateTimeFormat('en-GB', dateFormatOptions);
+
+  function renderSortIcon(column: SortColumn): ComponentChildren {
+    const isActive = sortBy === column;
+
+    if (isActive) {
+      return (
+        <img
+          src={sortOrder === 'asc' ? '/public/images/sort-up.svg' : '/public/images/sort-down.svg'}
+          class='white drop-shadow-md w-4 h-4'
+          width={16}
+          height={16}
+          alt={sortOrder === 'asc' ? 'Arrow pointing up' : 'Arrow pointing down'}
+          title={sortOrder === 'asc' ? 'Sort ascending' : 'Sort descending'}
+        />
+      );
+    } else {
+      return (
+        <img
+          src='/public/images/sort-none.svg'
+          class='white drop-shadow-md w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity'
+          width={16}
+          height={16}
+          alt='Two arrows side by side, one pointing up, the other pointing down'
+          title={`Sort by ${column} ascending`}
+        />
+      );
+    }
+  }
+
+  function renderSortableHeader(
+    label: string,
+    column: SortColumn,
+    extraClassName?: string,
+  ): ComponentChildren {
+    const isActive = sortBy === column;
+
+    if (!onClickSort) {
+      return <th scope='col' class={`px-6 py-4 font-medium text-white ${extraClassName || ''}`}>{label}</th>;
+    }
+
+    return (
+      <th scope='col' class={`px-6 py-4 font-medium text-white ${extraClassName || ''}`}>
+        <button
+          class={`group flex items-center justify-between w-full text-left hover:text-blue-300 ${
+            isActive ? 'text-blue-400' : ''
+          }`}
+          onClick={() => onClickSort(column)}
+          type='button'
+        >
+          <span>{label}</span>
+          <span class='ml-1'>
+            {renderSortIcon(column)}
+          </span>
+        </button>
+      </th>
+    );
+  }
 
   let routePath = fileShareId ? `file-share/${fileShareId}` : 'files';
   let itemSingleLabel = 'file';
@@ -106,11 +170,9 @@ export default function ListFiles(
                   />
                 </th>
               )}
-            <th scope='col' class='px-6 py-4 font-medium text-white'>Name</th>
-            <th scope='col' class='px-6 py-4 font-medium text-white w-64'>Last update</th>
-            {isShowingNotes || isShowingPhotos
-              ? null
-              : <th scope='col' class='px-6 py-4 font-medium text-white w-32'>Size</th>}
+            {renderSortableHeader('Name', 'name')}
+            {renderSortableHeader('Last update', 'updated_at', 'w-64')}
+            {isShowingNotes || isShowingPhotos ? null : renderSortableHeader('Size', 'size_in_bytes', 'w-32')}
             {isShowingPhotos || fileShareId
               ? null
               : <th scope='col' class='px-6 py-4 font-medium text-white w-24'></th>}
@@ -139,11 +201,11 @@ export default function ListFiles(
                 )}
                 <td class='flex gap-3 px-6 py-4'>
                   <a
-                    href={`/${routePath}?path=${encodeURIComponent(fullPath)}`}
+                    href={`/${routePath}?path=${encodeURIComponent(fullPath)}&sortBy=${sortBy}&sortOrder=${sortOrder}`}
                     class='flex items-center font-normal text-white'
                   >
                     <img
-                      src={`/images/${fullPath === TRASH_PATH ? 'trash.svg' : 'directory.svg'}`}
+                      src={`/public/images/${fullPath === TRASH_PATH ? 'trash.svg' : 'directory.svg'}`}
                       class='white drop-shadow-md mr-2'
                       width={18}
                       height={18}
@@ -158,7 +220,7 @@ export default function ListFiles(
                 </td>
                 {isShowingNotes || isShowingPhotos ? null : (
                   <td class='px-6 py-4 text-slate-200'>
-                    -
+                    {humanFileSize(directory.size_in_bytes)}
                   </td>
                 )}
                 {isShowingPhotos || fileShareId ? null : (
@@ -174,7 +236,7 @@ export default function ListFiles(
                               onClick={() => onClickDownloadDirectory(directory.parent_path, directory.directory_name)}
                             >
                               <img
-                                src='/images/download.svg'
+                                src='/public/images/download.svg'
                                 class='white drop-shadow-md'
                                 width={18}
                                 height={18}
@@ -189,7 +251,7 @@ export default function ListFiles(
                               onClickOpenRenameDirectory(directory.parent_path, directory.directory_name)}
                           >
                             <img
-                              src='/images/rename.svg'
+                              src='/public/images/rename.svg'
                               class='white drop-shadow-md'
                               width={18}
                               height={18}
@@ -202,7 +264,7 @@ export default function ListFiles(
                             onClick={() => onClickOpenMoveDirectory(directory.parent_path, directory.directory_name)}
                           >
                             <img
-                              src='/images/move.svg'
+                              src='/public/images/move.svg'
                               class='white drop-shadow-md'
                               width={18}
                               height={18}
@@ -216,7 +278,7 @@ export default function ListFiles(
                               onClick={() => onClickDeleteDirectory(directory.parent_path, directory.directory_name)}
                             >
                               <img
-                                src='/images/delete.svg'
+                                src='/public/images/delete.svg'
                                 class='red drop-shadow-md'
                                 width={20}
                                 height={20}
@@ -231,7 +293,7 @@ export default function ListFiles(
                               onClick={() => onClickCreateShare(join(directory.parent_path, directory.directory_name))}
                             >
                               <img
-                                src='/images/share.svg'
+                                src='/public/images/share.svg'
                                 class='white drop-shadow-md'
                                 width={18}
                                 height={18}
@@ -246,7 +308,7 @@ export default function ListFiles(
                               onClick={() => onClickOpenManageShare(directory.file_share_id!)}
                             >
                               <img
-                                src='/images/share.svg'
+                                src='/public/images/share.svg'
                                 class='white drop-shadow-md'
                                 width={18}
                                 height={18}
@@ -288,7 +350,7 @@ export default function ListFiles(
                   rel='noopener noreferrer'
                 >
                   <img
-                    src='/images/file.svg'
+                    src='/public/images/file.svg'
                     class='white drop-shadow-md mr-2'
                     width={18}
                     height={18}
@@ -315,7 +377,7 @@ export default function ListFiles(
                         onClick={() => onClickOpenRenameFile(file.parent_path, file.file_name)}
                       >
                         <img
-                          src='/images/rename.svg'
+                          src='/public/images/rename.svg'
                           class='white drop-shadow-md'
                           width={18}
                           height={18}
@@ -330,7 +392,7 @@ export default function ListFiles(
                         onClick={() => onClickOpenMoveFile(file.parent_path, file.file_name)}
                       >
                         <img
-                          src='/images/move.svg'
+                          src='/public/images/move.svg'
                           class='white drop-shadow-md'
                           width={18}
                           height={18}
@@ -345,7 +407,7 @@ export default function ListFiles(
                         onClick={() => onClickDeleteFile(file.parent_path, file.file_name)}
                       >
                         <img
-                          src='/images/delete.svg'
+                          src='/public/images/delete.svg'
                           class='red drop-shadow-md'
                           width={20}
                           height={20}
@@ -360,7 +422,7 @@ export default function ListFiles(
                         onClick={() => onClickCreateShare(join(file.parent_path, file.file_name))}
                       >
                         <img
-                          src='/images/share.svg'
+                          src='/public/images/share.svg'
                           class='white drop-shadow-md'
                           width={18}
                           height={18}
@@ -375,7 +437,7 @@ export default function ListFiles(
                         onClick={() => onClickOpenManageShare(file.file_share_id!)}
                       >
                         <img
-                          src='/images/share.svg'
+                          src='/public/images/share.svg'
                           class='white drop-shadow-md'
                           width={18}
                           height={18}

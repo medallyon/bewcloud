@@ -1,38 +1,40 @@
 import { useSignal } from '@preact/signals';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { ResponseBody as UploadResponseBody } from '/routes/api/files/upload.tsx';
-import { RequestBody as RenameRequestBody, ResponseBody as RenameResponseBody } from '/routes/api/files/rename.tsx';
-import { RequestBody as MoveRequestBody, ResponseBody as MoveResponseBody } from '/routes/api/files/move.tsx';
-import { RequestBody as DeleteRequestBody, ResponseBody as DeleteResponseBody } from '/routes/api/files/delete.tsx';
+import { SortColumn, sortDirectories, sortFiles, SortOrder } from '/public/ts/utils/files.ts';
+import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
+import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
+import { RequestBody as RenameRequestBody, ResponseBody as RenameResponseBody } from '/pages/api/files/rename.ts';
+import { RequestBody as MoveRequestBody, ResponseBody as MoveResponseBody } from '/pages/api/files/move.ts';
+import { RequestBody as DeleteRequestBody, ResponseBody as DeleteResponseBody } from '/pages/api/files/delete.ts';
 import {
   RequestBody as CreateDirectoryRequestBody,
   ResponseBody as CreateDirectoryResponseBody,
-} from '/routes/api/files/create-directory.tsx';
+} from '/pages/api/files/create-directory.ts';
 import {
   RequestBody as RenameDirectoryRequestBody,
   ResponseBody as RenameDirectoryResponseBody,
-} from '/routes/api/files/rename-directory.tsx';
+} from '/pages/api/files/rename-directory.ts';
 import {
   RequestBody as MoveDirectoryRequestBody,
   ResponseBody as MoveDirectoryResponseBody,
-} from '/routes/api/files/move-directory.tsx';
+} from '/pages/api/files/move-directory.ts';
 import {
   RequestBody as DeleteDirectoryRequestBody,
   ResponseBody as DeleteDirectoryResponseBody,
-} from '/routes/api/files/delete-directory.tsx';
+} from '/pages/api/files/delete-directory.ts';
 import {
   RequestBody as CreateShareRequestBody,
   ResponseBody as CreateShareResponseBody,
-} from '/routes/api/files/create-share.tsx';
+} from '/pages/api/files/create-share.ts';
 import {
   RequestBody as UpdateShareRequestBody,
   ResponseBody as UpdateShareResponseBody,
-} from '/routes/api/files/update-share.tsx';
+} from '/pages/api/files/update-share.ts';
 import {
   RequestBody as DeleteShareRequestBody,
   ResponseBody as DeleteShareResponseBody,
-} from '/routes/api/files/delete-share.tsx';
+} from '/pages/api/files/delete-share.ts';
 import SearchFiles from './SearchFiles.tsx';
 import ListFiles from './ListFiles.tsx';
 import FilesBreadcrumb from './FilesBreadcrumb.tsx';
@@ -50,6 +52,8 @@ interface MainFilesProps {
   isFileSharingAllowed: boolean;
   areDirectoryDownloadsAllowed: boolean;
   fileShareId?: string;
+  initialSortBy?: SortColumn;
+  initialSortOrder?: SortOrder;
 }
 
 export default function MainFiles(
@@ -61,15 +65,20 @@ export default function MainFiles(
     isFileSharingAllowed,
     areDirectoryDownloadsAllowed,
     fileShareId,
+    initialSortBy = 'name',
+    initialSortOrder = 'asc',
   }: MainFilesProps,
 ) {
   const isAdding = useSignal<boolean>(false);
   const isUploading = useSignal<boolean>(false);
+  const uploadProgress = useSignal<string>('');
   const isDeleting = useSignal<boolean>(false);
   const isUpdating = useSignal<boolean>(false);
   const directories = useSignal<Directory[]>(initialDirectories);
   const files = useSignal<DirectoryFile[]>(initialFiles);
   const path = useSignal<string>(initialPath);
+  const sortBy = useSignal<SortColumn>(initialSortBy);
+  const sortOrder = useSignal<SortOrder>(initialSortOrder);
   const chosenDirectories = useSignal<Pick<Directory, 'parent_path' | 'directory_name'>[]>([]);
   const chosenFiles = useSignal<Pick<DirectoryFile, 'parent_path' | 'file_name'>[]>([]);
   const isAnyItemChosen = chosenDirectories.value.length > 0 || chosenFiles.value.length > 0;
@@ -91,13 +100,9 @@ export default function MainFiles(
   const dragCounter = useSignal<number>(0);
 
   // Upload progress state
-  const uploadProgress = useSignal<number>(0);
   const currentFileName = useSignal<string>('');
   const totalFiles = useSignal<number>(0);
   const currentFileIndex = useSignal<number>(0);
-  const showProgressPercent = useSignal<boolean>(false);
-  const progressStartTime = useSignal<number>(0);
-  const isProcessing = useSignal<boolean>(false);
 
   // Directory creation progress state
   const isCreatingDirectories = useSignal<boolean>(false);
@@ -133,6 +138,14 @@ export default function MainFiles(
 
   // Helper function to handle file upload with conflict detection
   async function uploadFileWithConflictCheck(file: File, targetPath: string): Promise<boolean> {
+    async function doUpload() {
+      if (file.size >= CHUNK_SIZE_BYTES) {
+        await uploadFileChunked(file, targetPath);
+      } else {
+        await uploadFileSingle(file, targetPath);
+      }
+    }
+
     // Check if file already exists and we're not in "replace all" mode
     if (!replaceAllMode.value && checkFileExists(file.name, targetPath)) {
       return new Promise((resolve) => {
@@ -143,12 +156,8 @@ export default function MainFiles(
           onReplace: async () => {
             fileConflictModal.value = null;
             try {
-              const result = await uploadFileWithProgress(file, targetPath);
-              if (result.success) {
-                files.value = [...result.newFiles];
-                directories.value = [...result.newDirectories];
-              }
-              resolve(result.success);
+              await doUpload();
+              resolve(true);
             } catch (error) {
               console.error(error);
               resolve(false);
@@ -162,12 +171,8 @@ export default function MainFiles(
             replaceAllMode.value = true;
             fileConflictModal.value = null;
             try {
-              const result = await uploadFileWithProgress(file, targetPath);
-              if (result.success) {
-                files.value = [...result.newFiles];
-                directories.value = [...result.newDirectories];
-              }
-              resolve(result.success);
+              await doUpload();
+              resolve(true);
             } catch (error) {
               console.error(error);
               resolve(false);
@@ -178,12 +183,8 @@ export default function MainFiles(
     } else {
       // No conflict or in replace all mode - upload directly
       try {
-        const result = await uploadFileWithProgress(file, targetPath);
-        if (result.success) {
-          files.value = [...result.newFiles];
-          directories.value = [...result.newDirectories];
-        }
-        return result.success;
+        await doUpload();
+        return true;
       } catch (error) {
         console.error(error);
         return false;
@@ -191,75 +192,108 @@ export default function MainFiles(
     }
   }
 
-  // Helper function to upload a single file with progress tracking
-  function uploadFileWithProgress(file: File, parentPath: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
+  function onClickSort(column: SortColumn) {
+    let newSortOrder: SortOrder = 'asc';
 
-      formData.set('path_in_view', path.value);
-      formData.set('parent_path', parentPath);
-      formData.set('name', file.name);
-      formData.set('contents', file);
+    if (sortBy.value === column) {
+      newSortOrder = sortOrder.value === 'asc' ? 'desc' : 'asc';
+    } else {
+      newSortOrder = 'asc';
+    }
 
-      // Handle directory structure if the file comes from a chosen directory
-      if ((file as any).webkitRelativePath) {
-        const directoryPath = (file as any).webkitRelativePath.replace(file.name, '');
-        formData.set('parent_path', `${path.value}${directoryPath}`);
+    sortBy.value = column;
+    sortOrder.value = newSortOrder;
+
+    const sortOptions = { sortBy: column, sortOrder: newSortOrder };
+    directories.value = sortDirectories(directories.value, sortOptions);
+    files.value = sortFiles(files.value, sortOptions);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('sortBy', column);
+    url.searchParams.set('sortOrder', newSortOrder);
+    window.history.replaceState({}, '', url.toString());
+
+    if (!fileShareId) {
+      fetch('/api/files/update-sort', {
+        method: 'POST',
+        body: JSON.stringify({ sortBy: column, sortOrder: newSortOrder }),
+      }).catch(console.error);
+    }
+  }
+
+  // 10 MB chunks keep each request faster.
+  const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
+
+  async function uploadFileSingle(chosenFile: File, parentPath: string) {
+    const requestBody = new FormData();
+    requestBody.set('path_in_view', path.value);
+    requestBody.set('parent_path', parentPath);
+    requestBody.set('name', chosenFile.name);
+    requestBody.set('contents', chosenFile);
+
+    const response = await fetch(`/api/files/upload`, {
+      method: 'POST',
+      body: requestBody,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to upload file. ${response.statusText} ${await response.text()}`);
+    }
+
+    const result = await response.json() as UploadResponseBody;
+
+    if (!result.success) {
+      throw new Error('Failed to upload file!');
+    }
+
+    files.value = [...result.newFiles];
+    directories.value = [...result.newDirectories];
+  }
+
+  async function uploadFileChunked(chosenFile: File, parentPath: string) {
+    const totalChunks = Math.ceil(chosenFile.size / CHUNK_SIZE_BYTES);
+    const uploadId = crypto.randomUUID();
+    // Capture once — the user may navigate away during a long upload, which would change path.value and cause the final response to refresh the wrong directory listing.
+    const pathInView = path.value;
+
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      uploadProgress.value = `Uploading ${chosenFile.name} (${chunkIndex + 1}/${totalChunks})…`;
+
+      const start = chunkIndex * CHUNK_SIZE_BYTES;
+      const end = Math.min(start + CHUNK_SIZE_BYTES, chosenFile.size);
+      const chunkBlob = chosenFile.slice(start, end);
+
+      const requestBody = new FormData();
+      requestBody.set('upload_id', uploadId);
+      requestBody.set('chunk_index', String(chunkIndex));
+      requestBody.set('total_chunks', String(totalChunks));
+      requestBody.set('path_in_view', pathInView);
+      requestBody.set('parent_path', parentPath);
+      requestBody.set('name', chosenFile.name);
+      requestBody.set('chunk', chunkBlob);
+
+      const response = await fetch(`/api/files/upload-chunk`, {
+        method: 'POST',
+        body: requestBody,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`,
+        );
       }
 
-      // Reset progress states
-      showProgressPercent.value = false;
-      progressStartTime.value = Date.now();
-      isProcessing.value = false;
+      const result = await response.json() as ChunkUploadResponseBody;
 
-      // Timer to show progress after 1 second
-      const progressTimer = setTimeout(() => {
-        showProgressPercent.value = true;
-      }, 1000);
+      if (!result.success) {
+        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
+      }
 
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = Math.round((e.loaded / e.total) * 100);
-          uploadProgress.value = percentComplete;
-
-          // If we reach 100%, start showing processing state
-          if (percentComplete >= 100) {
-            isProcessing.value = true;
-          }
-        }
-      });
-
-      xhr.addEventListener('loadstart', () => {
-        // Reset processing state when starting
-        isProcessing.value = false;
-      });
-
-      xhr.addEventListener('load', () => {
-        clearTimeout(progressTimer);
-        isProcessing.value = false;
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            resolve(result);
-          } catch (error) {
-            reject(new Error('Failed to parse response'));
-          }
-        } else {
-          reject(new Error(`Failed to upload file. ${xhr.statusText}`));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        clearTimeout(progressTimer);
-        isProcessing.value = false;
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.open('POST', '/api/files/upload');
-      xhr.send(formData);
-    });
+      if (result.isComplete) {
+        files.value = [...result.newFiles!];
+        directories.value = [...result.newDirectories!];
+      }
+    }
   }
 
   function onClickUploadFile(uploadDirectory = false) {
@@ -284,7 +318,7 @@ export default function MainFiles(
       isUploading.value = true;
       totalFiles.value = chosenFiles.length;
       currentFileIndex.value = 0;
-      uploadProgress.value = 0;
+      uploadProgress.value = '';
       replaceAllMode.value = false; // Reset replace all mode for new upload session
 
       for (let i = 0; i < chosenFiles.length; i++) {
@@ -293,7 +327,7 @@ export default function MainFiles(
 
         currentFileIndex.value = i + 1;
         currentFileName.value = chosenFile.name;
-        uploadProgress.value = 0;
+        uploadProgress.value = '';
         areNewOptionsOpen.value = false;
 
         const targetPath = getTargetPath(chosenFile);
@@ -305,12 +339,10 @@ export default function MainFiles(
       }
 
       isUploading.value = false;
-      uploadProgress.value = 0;
+      uploadProgress.value = '';
       currentFileName.value = '';
       totalFiles.value = 0;
       currentFileIndex.value = 0;
-      showProgressPercent.value = false;
-      isProcessing.value = false;
       replaceAllMode.value = false;
     };
   }
@@ -323,7 +355,7 @@ export default function MainFiles(
     isUploading.value = true;
     totalFiles.value = droppedFiles.length;
     currentFileIndex.value = 0;
-    uploadProgress.value = 0;
+    uploadProgress.value = '';
     replaceAllMode.value = false; // Reset replace all mode for new upload session
 
     for (let i = 0; i < droppedFiles.length; i++) {
@@ -332,7 +364,7 @@ export default function MainFiles(
 
       currentFileIndex.value = i + 1;
       currentFileName.value = file.name;
-      uploadProgress.value = 0;
+      uploadProgress.value = '';
 
       const targetPath = getTargetPath(file);
       const success = await uploadFileWithConflictCheck(file, targetPath);
@@ -343,12 +375,10 @@ export default function MainFiles(
     }
 
     isUploading.value = false;
-    uploadProgress.value = 0;
+    uploadProgress.value = '';
     currentFileName.value = '';
     totalFiles.value = 0;
     currentFileIndex.value = 0;
-    showProgressPercent.value = false;
-    isProcessing.value = false;
     replaceAllMode.value = false;
   }
 
@@ -1093,7 +1123,7 @@ export default function MainFiles(
         <div class='fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center'>
           <div class='bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center'>
             <img
-              src='/images/add.svg'
+              src='/public/images/add.svg'
               alt='Upload'
               class='white mx-auto mb-4'
               width={48}
@@ -1124,7 +1154,7 @@ export default function MainFiles(
                       onClick={() => toggleBulkOptionsDropdown()}
                     >
                       <img
-                        src={`/images/${areBulkOptionsOpen.value ? 'hide-options' : 'show-options'}.svg`}
+                        src={`/public/images/${areBulkOptionsOpen.value ? 'hide-options' : 'show-options'}.svg`}
                         alt='Bulk actions'
                         class={`white w-5 max-w-5`}
                         width={20}
@@ -1134,7 +1164,7 @@ export default function MainFiles(
                   </div>
 
                   <div
-                    class={`absolute left-0 z-10 mt-2 w-44 origin-top-left rounded-md bg-slate-700 shadow-lg ring-1 ring-black ring-opacity-15 focus:outline-none ${
+                    class={`absolute left-0 z-10 mt-2 w-44 origin-top-left rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15 focus:outline-none ${
                       !areBulkOptionsOpen.value ? 'hidden' : ''
                     }`}
                     role='menu'
@@ -1159,7 +1189,12 @@ export default function MainFiles(
         </section>
 
         <section class='flex items-center justify-end'>
-          <FilesBreadcrumb path={path.value} fileShareId={fileShareId} />
+          <FilesBreadcrumb
+            path={path.value}
+            fileShareId={fileShareId}
+            sortBy={sortBy.value}
+            sortOrder={sortOrder.value}
+          />
 
           {!fileShareId
             ? (
@@ -1175,7 +1210,7 @@ export default function MainFiles(
                     onClick={() => toggleNewOptionsDropdown()}
                   >
                     <img
-                      src='/images/add.svg'
+                      src='/public/images/add.svg'
                       alt='Add new file or directory'
                       class={`white ${
                         isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''
@@ -1187,7 +1222,7 @@ export default function MainFiles(
                 </div>
 
                 <div
-                  class={`absolute right-0 z-10 mt-2 w-44 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black ring-opacity-15 focus:outline-none ${
+                  class={`absolute right-0 z-10 mt-2 w-44 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15 focus:outline-none ${
                     !areNewOptionsOpen.value ? 'hidden' : ''
                   }`}
                   role='menu'
@@ -1243,6 +1278,9 @@ export default function MainFiles(
           onClickOpenManageShare={isFileSharingAllowed ? onClickOpenManageShare : undefined}
           onClickDownloadDirectory={areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
           fileShareId={fileShareId}
+          sortBy={sortBy.value}
+          sortOrder={sortOrder.value}
+          onClickSort={onClickSort}
         />
 
         <span
@@ -1251,21 +1289,21 @@ export default function MainFiles(
           {isDeleting.value
             ? (
               <>
-                <img src='/images/loading.svg' class='white mr-2' width={18} height={18} />Deleting...
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Deleting...
               </>
             )
             : null}
           {isAdding.value
             ? (
               <>
-                <img src='/images/loading.svg' class='white mr-2' width={18} height={18} />Creating...
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Creating...
               </>
             )
             : null}
           {isCreatingDirectories.value
             ? (
               <>
-                <img src='/images/loading.svg' class='white mr-2' width={18} height={18} />
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
                 Creating directory {currentDirectoryName.value}...
               </>
             )
@@ -1273,12 +1311,8 @@ export default function MainFiles(
           {isUploading.value
             ? (
               <>
-                <img src='/images/loading.svg' class='white mr-2' width={18} height={18} />
-                {isProcessing.value
-                  ? `Saving ${currentFileName.value} to disk...`
-                  : `Uploading ${currentFileName.value}${
-                    showProgressPercent.value ? ` (${uploadProgress.value}%)` : '...'
-                  }`}
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
+                {uploadProgress.value || `Uploading ${currentFileName.value}...`}
                 {totalFiles.value > 1 ? ` - File ${currentFileIndex.value} of ${totalFiles.value}` : ''}
               </>
             )
@@ -1286,7 +1320,7 @@ export default function MainFiles(
           {isUpdating.value
             ? (
               <>
-                <img src='/images/loading.svg' class='white mr-2' width={18} height={18} />Updating...
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Updating...
               </>
             )
             : null}

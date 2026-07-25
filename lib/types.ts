@@ -19,6 +19,10 @@ export interface User {
       id: string;
       utcOffset: number;
     };
+    file_sorting?: {
+      sort_by: string;
+      sort_order: string;
+    };
   };
   created_at: Date;
 }
@@ -29,11 +33,6 @@ export interface UserSession {
   expires_at: Date;
   last_seen_at: Date;
   created_at: Date;
-}
-
-export interface FreshContextState {
-  user?: User;
-  session?: UserSession;
 }
 
 export interface VerificationCode {
@@ -140,19 +139,11 @@ export interface Expense {
 }
 
 export type SupportedCurrencySymbol = '$' | '€' | '£' | '¥' | '₹';
-type SupportedCurrency = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'INR';
-
-export const currencyMap = new Map<SupportedCurrencySymbol, SupportedCurrency>([
-  ['$', 'USD'],
-  ['€', 'EUR'],
-  ['£', 'GBP'],
-  ['¥', 'JPY'],
-  ['₹', 'INR'],
-]);
+export type SupportedCurrency = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'INR';
 
 export type PartialDeep<T> = (T extends (infer U)[] ? PartialDeep<U>[] : { [P in keyof T]?: PartialDeep<T[P]> }) | T;
 
-export type OptionalApp = 'news' | 'notes' | 'photos' | 'expenses' | 'contacts' | 'calendar';
+export type OptionalApp = 'dashboard' | 'files' | 'news' | 'notes' | 'photos' | 'expenses' | 'contacts' | 'calendar';
 
 export interface Config {
   auth: {
@@ -172,6 +163,8 @@ export interface Config {
     skipCookieDomainSecurity: boolean;
     /** If true, single sign-on will be enabled */
     enableSingleSignOn: boolean;
+    /** If true, signups via single sign-on will be allowed, overriding allowSignups */
+    allowSignupsViaSingleSignOn: boolean;
     /** The Discovery URL (AKA Issuer) of the identity/single sign-on provider */
     singleSignOnUrl: string;
     /** The attribute to prefer as email of the identity/single sign-on provider */
@@ -186,10 +179,14 @@ export interface Config {
     allowPublicSharing: boolean;
     /** If true, directories can be downloaded as zip files */
     allowDirectoryDownloads: boolean;
+    /** The maximum upload size in megabytes. Overrides the core.maxRequestSizeInMegabytes setting on /dav and /api/files/upload endpoints. */
+    maxUploadSizeInMegabytes: number;
   };
   core: {
-    /** dashboard and files cannot be disabled */
+    /** The apps to show, in order of appearance in the header. The first app will be the default one shown after logging in. At least one is required. */
     enabledApps: OptionalApp[];
+    /** The maximum request size in megabytes. */
+    maxRequestSizeInMegabytes: number;
   };
   visuals: {
     /** An override title of the application. Empty shows the default title. */
@@ -206,6 +203,10 @@ export interface Config {
     host: string;
     /** The SMTP port to send emails from */
     port: number;
+    /** "auto" means "immediate" on port 465, "starttls" otherwise. */
+    tlsMode: 'auto' | 'immediate' | 'starttls' | 'none';
+    /** Whether to verify the TLS certificate. If a string is used the hostname will be verified using that name. */
+    tlsVerify: boolean | string;
   };
   contacts: {
     /** If true, the CardDAV server will be enabled (proxied) */
