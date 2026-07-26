@@ -1,4 +1,5 @@
 import { useSignal } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { SortColumn, sortDirectories, sortFiles, SortOrder } from '/public/ts/utils/files.ts';
@@ -99,7 +100,7 @@ export default function MainFiles(
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
 
-  // Upload progress state
+  // Upload progress state (only used for the direct-upload fallback; the service worker path drives isUploading/uploadProgress via broadcast instead)
   const currentFileName = useSignal<string>('');
   const totalFiles = useSignal<number>(0);
   const currentFileIndex = useSignal<number>(0);
@@ -136,61 +137,89 @@ export default function MainFiles(
     return path.value;
   }
 
-  // Helper function to handle file upload with conflict detection
-  async function uploadFileWithConflictCheck(file: File, targetPath: string): Promise<boolean> {
-    async function doUpload() {
-      if (file.size >= CHUNK_SIZE_BYTES) {
-        await uploadFileChunked(file, targetPath);
-      } else {
-        await uploadFileSingle(file, targetPath);
+  // Resolves a naming conflict for a single file, prompting the user unless already in "replace all" mode. Returns whether the file should be uploaded.
+  function resolveFileConflict(file: File, targetPath: string): Promise<boolean> {
+    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
+      return Promise.resolve(true);
+    }
+
+    return new Promise((resolve) => {
+      fileConflictModal.value = {
+        isOpen: true,
+        conflictFile: file,
+        existingFileName: file.name,
+        onReplace: () => {
+          fileConflictModal.value = null;
+          resolve(true);
+        },
+        onSkip: () => {
+          fileConflictModal.value = null;
+          resolve(false);
+        },
+        onReplaceAll: () => {
+          replaceAllMode.value = true;
+          fileConflictModal.value = null;
+          resolve(true);
+        },
+      };
+    });
+  }
+
+  // Uploads run inside a service worker (public/sw.js) so they survive a page refresh. This tab just enqueues files and listens for progress here; on mount it also queries whether a job is already running (e.g. right after a refresh) to hydrate the UI from it.
+  useEffect(() => {
+    if (fileShareId || !('serviceWorker' in navigator)) {
+      return;
+    }
+
+    const uploadChannel = new BroadcastChannel('bewcloud-uploads');
+
+    uploadChannel.onmessage = (event) => {
+      const state = event.data as {
+        type: string;
+        isUploading: boolean;
+        uploadProgress: string;
+        newFiles?: DirectoryFile[];
+        newDirectories?: Directory[];
+        pathInView?: string;
+        error?: string;
+      };
+
+      if (!state || state.type !== 'STATE') {
+        return;
+      }
+
+      isUploading.value = state.isUploading;
+      uploadProgress.value = state.uploadProgress || '';
+
+      if (state.error) {
+        console.error(new Error(state.error));
+      }
+
+      // Only apply the file/directory listing from an upload if it matches this tab's own current path; another tab may have uploaded into a different directory.
+      if (state.newFiles && state.pathInView === path.value) {
+        files.value = [...state.newFiles];
+      }
+
+      if (state.newDirectories && state.pathInView === path.value) {
+        directories.value = [...state.newDirectories];
+      }
+    };
+
+    async function queryUploadState() {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        registration.active?.postMessage({ type: 'QUERY_STATE' });
+      } catch (error) {
+        console.error(error);
       }
     }
 
-    // Check if file already exists and we're not in "replace all" mode
-    if (!replaceAllMode.value && checkFileExists(file.name, targetPath)) {
-      return new Promise((resolve) => {
-        fileConflictModal.value = {
-          isOpen: true,
-          conflictFile: file,
-          existingFileName: file.name,
-          onReplace: async () => {
-            fileConflictModal.value = null;
-            try {
-              await doUpload();
-              resolve(true);
-            } catch (error) {
-              console.error(error);
-              resolve(false);
-            }
-          },
-          onSkip: () => {
-            fileConflictModal.value = null;
-            resolve(true); // Skip counts as "success" to continue with next file
-          },
-          onReplaceAll: async () => {
-            replaceAllMode.value = true;
-            fileConflictModal.value = null;
-            try {
-              await doUpload();
-              resolve(true);
-            } catch (error) {
-              console.error(error);
-              resolve(false);
-            }
-          },
-        };
-      });
-    } else {
-      // No conflict or in replace all mode - upload directly
-      try {
-        await doUpload();
-        return true;
-      } catch (error) {
-        console.error(error);
-        return false;
-      }
-    }
-  }
+    queryUploadState();
+
+    return () => {
+      uploadChannel.close();
+    };
+  }, []);
 
   function onClickSort(column: SortColumn) {
     let newSortOrder: SortOrder = 'asc';
@@ -296,6 +325,55 @@ export default function MainFiles(
     }
   }
 
+  // Uploads the given files, preferring the service worker (so uploads survive a page refresh) and falling back to a direct sequential upload when no service worker is controlling this page yet.
+  async function uploadFiles(items: { file: File; parentPath: string }[]) {
+    if (items.length === 0) {
+      return;
+    }
+
+    // Capture once: the user may navigate away during upload, which would change path.value and cause the final response to refresh the wrong directory listing.
+    const pathInView = path.value;
+
+    const serviceWorker = navigator.serviceWorker?.controller;
+
+    if (serviceWorker) {
+      serviceWorker.postMessage({
+        type: 'ENQUEUE_UPLOAD',
+        items: items.map(({ file, parentPath }) => ({ file, parentPath, pathInView })),
+      });
+      return;
+    }
+
+    isUploading.value = true;
+    totalFiles.value = items.length;
+    currentFileIndex.value = 0;
+    uploadProgress.value = '';
+
+    for (let i = 0; i < items.length; i++) {
+      const { file, parentPath } = items[i];
+
+      currentFileIndex.value = i + 1;
+      currentFileName.value = file.name;
+      uploadProgress.value = '';
+
+      try {
+        if (file.size >= CHUNK_SIZE_BYTES) {
+          await uploadFileChunked(file, parentPath);
+        } else {
+          await uploadFileSingle(file, parentPath);
+        }
+      } catch (error) {
+        console.error(`Failed to upload file: ${file.name}`, error);
+      }
+    }
+
+    isUploading.value = false;
+    uploadProgress.value = '';
+    currentFileName.value = '';
+    totalFiles.value = 0;
+    currentFileIndex.value = 0;
+  }
+
   function onClickUploadFile(uploadDirectory = false) {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -313,36 +391,26 @@ export default function MainFiles(
       const chosenFilesList = (event.target as HTMLInputElement)?.files!;
       const chosenFiles = Array.from(chosenFilesList);
 
-      if (chosenFiles.length === 0) return;
+      if (chosenFiles.length === 0) {
+        return;
+      }
 
-      isUploading.value = true;
-      totalFiles.value = chosenFiles.length;
-      currentFileIndex.value = 0;
-      uploadProgress.value = '';
+      areNewOptionsOpen.value = false;
       replaceAllMode.value = false; // Reset replace all mode for new upload session
 
-      for (let i = 0; i < chosenFiles.length; i++) {
-        const chosenFile = chosenFiles[i];
-        if (!chosenFile) continue;
+      const itemsToUpload: { file: File; parentPath: string }[] = [];
 
-        currentFileIndex.value = i + 1;
-        currentFileName.value = chosenFile.name;
-        uploadProgress.value = '';
-        areNewOptionsOpen.value = false;
-
+      for (const chosenFile of chosenFiles) {
         const targetPath = getTargetPath(chosenFile);
-        const success = await uploadFileWithConflictCheck(chosenFile, targetPath);
+        const shouldUpload = await resolveFileConflict(chosenFile, targetPath);
 
-        if (!success) {
-          console.error(`Failed to upload file: ${chosenFile.name}`);
+        if (shouldUpload) {
+          itemsToUpload.push({ file: chosenFile, parentPath: targetPath });
         }
       }
 
-      isUploading.value = false;
-      uploadProgress.value = '';
-      currentFileName.value = '';
-      totalFiles.value = 0;
-      currentFileIndex.value = 0;
+      await uploadFiles(itemsToUpload);
+
       replaceAllMode.value = false;
     };
   }
@@ -352,33 +420,21 @@ export default function MainFiles(
     if (droppedFiles.length === 0) return;
 
     areNewOptionsOpen.value = false;
-    isUploading.value = true;
-    totalFiles.value = droppedFiles.length;
-    currentFileIndex.value = 0;
-    uploadProgress.value = '';
     replaceAllMode.value = false; // Reset replace all mode for new upload session
 
-    for (let i = 0; i < droppedFiles.length; i++) {
-      const file = droppedFiles[i];
-      if (!file) continue;
+    const itemsToUpload: { file: File; parentPath: string }[] = [];
 
-      currentFileIndex.value = i + 1;
-      currentFileName.value = file.name;
-      uploadProgress.value = '';
-
+    for (const file of droppedFiles) {
       const targetPath = getTargetPath(file);
-      const success = await uploadFileWithConflictCheck(file, targetPath);
+      const shouldUpload = await resolveFileConflict(file, targetPath);
 
-      if (!success) {
-        console.error(`Failed to upload file: ${file.name}`);
+      if (shouldUpload) {
+        itemsToUpload.push({ file, parentPath: targetPath });
       }
     }
 
-    isUploading.value = false;
-    uploadProgress.value = '';
-    currentFileName.value = '';
-    totalFiles.value = 0;
-    currentFileIndex.value = 0;
+    await uploadFiles(itemsToUpload);
+
     replaceAllMode.value = false;
   }
 
