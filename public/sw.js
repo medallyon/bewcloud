@@ -26,6 +26,8 @@ function broadcastState(extra = {}) {
     isUploading: Boolean(currentJob),
     uploadProgress: currentJob?.uploadProgress || '',
     sessionTag: currentJob?.sessionTag || '',
+    kindsInProgress: getKindsInProgress(currentJob),
+    kind: currentJob?.currentItemKind || '',
     ...extra,
   });
 }
@@ -37,11 +39,26 @@ function abandonCurrentJob() {
   broadcastState();
 }
 
-// A 403 is the endpoints refusing this queue's session tag, and a redirect means there's no session left at all (the request was bounced to the login page).
+// A 403 is the endpoints refusing this queue's session tag, and a redirect means there's no session left at all (the request was bounced to the login page). The upload endpoints use 503, not 403, when they're refusing for an unrelated reason (the app is disabled), so 403 here means the session specifically.
 function throwIfUploadSessionIsGone(response) {
   if (response.status === 403 || response.redirected) {
     throw new UploadSessionGoneError('upload cancelled, this session is no longer valid');
   }
+}
+
+// Kinds still represented in the job: whatever's still queued, plus whatever's mid-flight (already shifted off the queue). Lets each tab's hook show "uploading" only for its own kind of upload (e.g. Notes shouldn't light up while Files is uploading).
+function getKindsInProgress(job) {
+  if (!job) {
+    return [];
+  }
+
+  const kinds = new Set(job.queue.map((item) => item.kind || 'upload'));
+
+  if (job.currentItemKind) {
+    kinds.add(job.currentItemKind);
+  }
+
+  return [...kinds];
 }
 
 // fetch() tied to the job's own AbortController so the request cancels when the job is abandoned, plus a timeout so a server that's gone dark doesn't hang it forever.
@@ -143,9 +160,10 @@ async function uploadFileChunked(job, file, parentPath, pathInView) {
 
 async function processQueue(job) {
   while (job.queue.length > 0) {
-    const { file, parentPath, pathInView } = job.queue.shift();
+    const { file, parentPath, pathInView, kind } = job.queue.shift();
 
     job.uploadProgress = '';
+    job.currentItemKind = kind || 'upload';
     broadcastState();
 
     try {
@@ -187,6 +205,11 @@ self.addEventListener('message', (event) => {
   const message = event.data;
 
   if (!message || typeof message !== 'object') {
+    return;
+  }
+
+  if (message.type === 'ABORT_UPLOADS') {
+    abandonCurrentJob();
     return;
   }
 

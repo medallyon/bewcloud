@@ -19,6 +19,7 @@ interface UseUploadQueueOptions {
   files: Signal<DirectoryFile[]>;
   directories: Signal<Directory[]>;
   uploadSessionTag?: string;
+  uploadKind?: 'upload' | 'note';
 }
 
 // Uploads run inside a service worker (public/sw.js) so they survive a page refresh. This tab just enqueues files and listens for progress here; on mount it also queries whether a job is already running (e.g. right after a refresh) to hydrate the UI from it.
@@ -54,8 +55,8 @@ export function useUploadQueue({ isEnabled, path, files, directories, uploadSess
         return;
       }
 
-      isUploading.value = state.isUploading;
-      uploadProgress.value = state.uploadProgress || '';
+      isUploading.value = Boolean(state.kindsInProgress?.includes(uploadKind));
+      uploadProgress.value = state.kind === uploadKind ? (state.uploadProgress || '') : '';
 
       if (state.error) {
         console.error(new Error(state.error));
