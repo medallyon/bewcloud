@@ -23,7 +23,9 @@ interface UseUploadQueueOptions {
 }
 
 // Uploads run inside a service worker (public/sw.js) so they survive a page refresh. This tab just enqueues files and listens for progress here; on mount it also queries whether a job is already running (e.g. right after a refresh) to hydrate the UI from it.
-export function useUploadQueue({ isEnabled, path, files, directories, uploadSessionTag = '' }: UseUploadQueueOptions) {
+export function useUploadQueue(
+  { isEnabled, path, files, directories, uploadSessionTag = '', uploadKind = 'upload' }: UseUploadQueueOptions,
+) {
   const isUploading = useSignal<boolean>(false);
   const uploadProgress = useSignal<string>('');
   const uploadError = useSignal<string>('');
@@ -40,6 +42,8 @@ export function useUploadQueue({ isEnabled, path, files, directories, uploadSess
         type: string;
         isUploading: boolean;
         uploadProgress: string;
+        kindsInProgress?: string[];
+        kind?: string;
         newFiles?: DirectoryFile[];
         newDirectories?: Directory[];
         pathInView?: string;
@@ -58,7 +62,7 @@ export function useUploadQueue({ isEnabled, path, files, directories, uploadSess
       isUploading.value = Boolean(state.kindsInProgress?.includes(uploadKind));
       uploadProgress.value = state.kind === uploadKind ? (state.uploadProgress || '') : '';
 
-      if (state.error) {
+      if (state.error && state.kind === uploadKind) {
         console.error(new Error(state.error));
         uploadError.value = state.error;
       }
@@ -179,7 +183,7 @@ export function useUploadQueue({ isEnabled, path, files, directories, uploadSess
       serviceWorker.postMessage({
         type: 'ENQUEUE_UPLOAD',
         sessionTag: uploadSessionTag,
-        items: items.map((item) => ({ ...item, pathInView })),
+        items: items.map((item) => ({ ...item, pathInView, kind: uploadKind })),
       });
 
       return;

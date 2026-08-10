@@ -39,6 +39,7 @@ export default function MainNotes({ initialDirectories, initialFiles, initialPat
     files,
     directories,
     uploadSessionTag,
+    uploadKind: 'note',
   });
 
   function onClickCreateNote() {
