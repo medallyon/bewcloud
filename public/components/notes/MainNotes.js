@@ -27,7 +27,8 @@ export default function MainNotes({
     path,
     files,
     directories,
-    uploadSessionTag
+    uploadSessionTag,
+    uploadKind: 'note'
   });
   function onClickCreateNote() {
     if (isNewNoteModalOpen.value) {

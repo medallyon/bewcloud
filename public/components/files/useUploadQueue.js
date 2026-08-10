@@ -6,7 +6,8 @@ export function useUploadQueue({
   path,
   files,
   directories,
-  uploadSessionTag = ''
+  uploadSessionTag = '',
+  uploadKind = 'upload'
 }) {
   const isUploading = useSignal(false);
   const uploadProgress = useSignal('');
@@ -24,9 +25,9 @@ export function useUploadQueue({
       if (state.sessionTag && state.sessionTag !== uploadSessionTag) {
         return;
       }
-      isUploading.value = state.isUploading;
-      uploadProgress.value = state.uploadProgress || '';
-      if (state.error) {
+      isUploading.value = Boolean(state.kindsInProgress?.includes(uploadKind));
+      uploadProgress.value = state.kind === uploadKind ? state.uploadProgress || '' : '';
+      if (state.error && state.kind === uploadKind) {
         console.error(new Error(state.error));
         uploadError.value = state.error;
       }
@@ -108,7 +109,22 @@ export function useUploadQueue({
       }
     }
   }
-  function enqueueUpload(items) {
+  async function getActiveServiceWorker() {
+    if (!isEnabled || !('serviceWorker' in navigator)) {
+      return undefined;
+    }
+    if (navigator.serviceWorker.controller) {
+      return navigator.serviceWorker.controller;
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      return registration.active ?? undefined;
+    } catch (error) {
+      console.error(error);
+      return undefined;
+    }
+  }
+  async function enqueueUpload(items) {
     if (items.length === 0) {
       return;
     }
@@ -116,33 +132,32 @@ export function useUploadQueue({
     isUploading.value = true;
     uploadProgress.value = '';
     uploadError.value = '';
-    const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
+    const serviceWorker = await getActiveServiceWorker();
     if (serviceWorker) {
       serviceWorker.postMessage({
         type: 'ENQUEUE_UPLOAD',
         sessionTag: uploadSessionTag,
         items: items.map(item => ({
           ...item,
-          pathInView
+          pathInView,
+          kind: uploadKind
         }))
       });
       return;
     }
-    (async () => {
-      for (const item of items) {
-        try {
-          if (item.file.size >= CHUNK_SIZE_BYTES) {
-            await uploadFileChunked(item.file, item.parentPath, pathInView);
-          } else {
-            await uploadFileSingle(item.file, item.parentPath, pathInView);
-          }
-        } catch (error) {
-          console.error(error);
-          uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
+    for (const item of items) {
+      try {
+        if (item.file.size >= CHUNK_SIZE_BYTES) {
+          await uploadFileChunked(item.file, item.parentPath, pathInView);
+        } else {
+          await uploadFileSingle(item.file, item.parentPath, pathInView);
         }
+      } catch (error) {
+        console.error(error);
+        uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
       }
-      isUploading.value = false;
-    })();
+    }
+    isUploading.value = false;
   }
   return {
     isUploading,
