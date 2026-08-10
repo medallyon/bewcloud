@@ -150,7 +150,6 @@ async function post({ request, user, session }: RequestHandlerParams) {
       finalFile = await Deno.open(finalFilePath, { write: true, createNew: true });
     } catch (error) {
       await Deno.remove(uploadDir, { recursive: true }).catch(() => {});
-      await Deno.remove(userUploadDir, { recursive: true }).catch(() => {});
 
       console.error(error);
 
@@ -174,14 +173,12 @@ async function post({ request, user, session }: RequestHandlerParams) {
 
       await Deno.remove(finalFilePath).catch(() => {});
       await Deno.remove(uploadDir, { recursive: true }).catch(() => {});
-      await Deno.remove(userUploadDir, { recursive: true }).catch(() => {});
 
       throw error;
     }
 
     finalFile.close();
     await Deno.remove(uploadDir, { recursive: true });
-    await Deno.remove(userUploadDir, { recursive: true }).catch(() => {});
 
     const newFiles = await FileModel.list(user!.id, pathInView);
     const newDirectories = await DirectoryModel.list(user!.id, pathInView);
@@ -192,7 +189,6 @@ async function post({ request, user, session }: RequestHandlerParams) {
   } catch (error) {
     console.error(error);
     await Deno.remove(uploadDir, { recursive: true }).catch(() => {});
-    await Deno.remove(userUploadDir, { recursive: true }).catch(() => {});
 
     return new Response('Internal Server Error', { status: 500 });
   }

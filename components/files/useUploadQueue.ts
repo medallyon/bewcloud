@@ -60,7 +60,7 @@ export function useUploadQueue(
         return;
       }
 
-      isUploading.value = Boolean(state.kindsInProgress?.includes(uploadKind));
+      isUploading.value = state.kindsInProgress ? state.kindsInProgress.includes(uploadKind) : state.isUploading;
       uploadProgress.value = state.kind === uploadKind ? (state.uploadProgress || '') : '';
 
       if (state.error && state.kind === uploadKind) {
@@ -171,7 +171,12 @@ export function useUploadQueue(
     try {
       const requestBody: GetFilesRequestBody = { parentPath };
 
-      const response = await fetch('/api/files/get', { method: 'POST', body: JSON.stringify(requestBody) });
+      // Same reasoning as sw.js's fetchForJob: don't let a hung server response block the upload from ever starting.
+      const response = await fetch('/api/files/get', {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(10_000),
+      });
 
       if (!response.ok) {
         return new Set();
@@ -191,6 +196,9 @@ export function useUploadQueue(
     if (items.length === 0) {
       return;
     }
+
+    // Capture once, before any await: the user may navigate away while the pre-upload existence check or the upload itself is in flight, which would change path.value and cause the eventual response to refresh the wrong directory listing.
+    const pathInView = path.value;
 
     isUploading.value = true;
     uploadProgress.value = '';
@@ -216,9 +224,6 @@ export function useUploadQueue(
       isUploading.value = false;
       return;
     }
-
-    // Capture once: the user may navigate away during a long upload, which would change path.value and cause the final response to refresh the wrong directory listing.
-    const pathInView = path.value;
 
     const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
 

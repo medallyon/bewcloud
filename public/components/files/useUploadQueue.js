@@ -25,7 +25,7 @@ export function useUploadQueue({
       if (state.sessionTag && state.sessionTag !== uploadSessionTag) {
         return;
       }
-      isUploading.value = Boolean(state.kindsInProgress?.includes(uploadKind));
+      isUploading.value = state.kindsInProgress ? state.kindsInProgress.includes(uploadKind) : state.isUploading;
       uploadProgress.value = state.kind === uploadKind ? state.uploadProgress || '' : '';
       if (state.error && state.kind === uploadKind) {
         console.error(new Error(state.error));
@@ -116,7 +116,8 @@ export function useUploadQueue({
       };
       const response = await fetch('/api/files/get', {
         method: 'POST',
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(10_000)
       });
       if (!response.ok) {
         return new Set();
@@ -132,6 +133,7 @@ export function useUploadQueue({
     if (items.length === 0) {
       return;
     }
+    const pathInView = path.value;
     isUploading.value = true;
     uploadProgress.value = '';
     uploadError.value = '';
@@ -148,7 +150,6 @@ export function useUploadQueue({
       isUploading.value = false;
       return;
     }
-    const pathInView = path.value;
     const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
     if (serviceWorker) {
       serviceWorker.postMessage({
