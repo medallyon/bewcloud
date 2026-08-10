@@ -7,7 +7,7 @@ export function useUploadQueue({
   files,
   directories,
   uploadSessionTag = '',
-  uploadKind = 'upload'
+  uploadKind = 'file'
 }) {
   const isUploading = useSignal(false);
   const uploadProgress = useSignal('');
@@ -109,35 +109,52 @@ export function useUploadQueue({
       }
     }
   }
-  async function getActiveServiceWorker() {
-    if (!isEnabled || !('serviceWorker' in navigator)) {
-      return undefined;
-    }
-    if (navigator.serviceWorker.controller) {
-      return navigator.serviceWorker.controller;
-    }
+  async function findExistingNames(parentPath) {
     try {
-      const registration = await navigator.serviceWorker.ready;
-      return registration.active ?? undefined;
+      const requestBody = {
+        parentPath
+      };
+      const response = await fetch('/api/files/get', {
+        method: 'POST',
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        return new Set();
+      }
+      const result = await response.json();
+      return new Set(result.files.map(file => file.file_name));
     } catch (error) {
       console.error(error);
-      return undefined;
+      return new Set();
     }
   }
   async function enqueueUpload(items) {
     if (items.length === 0) {
       return;
     }
-    const pathInView = path.value;
     isUploading.value = true;
     uploadProgress.value = '';
     uploadError.value = '';
-    const serviceWorker = await getActiveServiceWorker();
+    const uniqueParentPaths = [...new Set(items.map(item => item.parentPath))];
+    const existingNamesByParentPath = new Map(await Promise.all(uniqueParentPaths.map(async parentPath => [parentPath, await findExistingNames(parentPath)])));
+    const itemsToUpload = items.filter(item => {
+      if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
+        uploadError.value = `${item.file.name}: A file with this name already exists.`;
+        return false;
+      }
+      return true;
+    });
+    if (itemsToUpload.length === 0) {
+      isUploading.value = false;
+      return;
+    }
+    const pathInView = path.value;
+    const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
     if (serviceWorker) {
       serviceWorker.postMessage({
         type: 'ENQUEUE_UPLOAD',
         sessionTag: uploadSessionTag,
-        items: items.map(item => ({
+        items: itemsToUpload.map(item => ({
           ...item,
           pathInView,
           kind: uploadKind
@@ -145,7 +162,7 @@ export function useUploadQueue({
       });
       return;
     }
-    for (const item of items) {
+    for (const item of itemsToUpload) {
       try {
         if (item.file.size >= CHUNK_SIZE_BYTES) {
           await uploadFileChunked(item.file, item.parentPath, pathInView);
