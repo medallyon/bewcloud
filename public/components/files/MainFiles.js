@@ -50,7 +50,8 @@ export default function MainFiles({
     path,
     files,
     directories,
-    uploadSessionTag
+    uploadSessionTag,
+    uploadKind: 'file'
   });
   function onClickSort(column) {
     let newSortOrder = 'asc';

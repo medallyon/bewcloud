@@ -26,7 +26,8 @@ export default function MainPhotos({
     path,
     files,
     directories,
-    uploadSessionTag
+    uploadSessionTag,
+    uploadKind: 'photo'
   });
   function onClickUploadFile() {
     const fileInput = document.createElement('input');
