@@ -346,6 +346,11 @@ export default function MainFiles({
           throw new Error('Failed to delete directory!');
         }
         directories.value = [...result.newDirectories];
+        navigator.serviceWorker?.controller?.postMessage({
+          type: 'DIRECTORY_DELETED',
+          sessionTag: uploadSessionTag,
+          path: `${parentPath}${name}/`
+        });
       } catch (error) {
         console.error(error);
       }

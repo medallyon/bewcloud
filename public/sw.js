@@ -33,10 +33,33 @@ function broadcastState(extra = {}) {
 }
 
 function abandonCurrentJob() {
-  currentJob?.abortController.abort();
+  const job = currentJob;
+
+  job?.abortController.abort();
   currentJob = null;
 
   broadcastState();
+  cleanupAbortedChunkUpload(job);
+}
+
+// Best-effort: if a chunked upload was mid-flight when the job got abandoned, tell the server to drop whatever chunks it already received instead of leaving them in .chunk-uploads until the 24h stale sweep.
+function cleanupAbortedChunkUpload(job) {
+  if (!job?.currentUploadId) {
+    return;
+  }
+
+  fetch('/api/files/upload-abort', {
+    method: 'POST',
+    body: JSON.stringify({ upload_id: job.currentUploadId, upload_session_tag: job.sessionTag }),
+  }).catch(() => {});
+}
+
+// True if a file still queued (or the one currently mid-flight) would land in the directory that just got deleted, or one of its subdirectories. Paths in this app always end in '/', so a prefix match also covers the exact-match case.
+function isJobAffectedByDeletedPath(job, deletedPath) {
+  const isUnderDeletedPath = (parentPath) => typeof parentPath === 'string' && parentPath.startsWith(deletedPath);
+
+  return isUnderDeletedPath(job.currentItemParentPath) ||
+    job.queue.some((item) => isUnderDeletedPath(item.parentPath));
 }
 
 // A 403 is the endpoints refusing this queue's session tag, and a redirect means there's no session left at all (the request was bounced to the login page). The upload endpoints use 503, not 403, when they're refusing for an unrelated reason (the app is disabled), so 403 here means the session specifically.
@@ -113,6 +136,7 @@ async function uploadFileSingle(job, file, parentPath, pathInView) {
 async function uploadFileChunked(job, file, parentPath, pathInView) {
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE_BYTES);
   const uploadId = crypto.randomUUID();
+  job.currentUploadId = uploadId;
 
   let completedResult = null;
 
@@ -164,6 +188,8 @@ async function processQueue(job) {
 
     job.uploadProgress = '';
     job.currentItemKind = kind || 'file';
+    job.currentItemParentPath = parentPath;
+    job.currentUploadId = undefined;
     broadcastState();
 
     try {
@@ -210,6 +236,18 @@ self.addEventListener('message', (event) => {
 
   if (message.type === 'ABORT_UPLOADS') {
     abandonCurrentJob();
+    return;
+  }
+
+  // Sent by the page after it deletes a directory, so a queue still writing into it (or a subdirectory of it) doesn't keep going against a destination that's gone.
+  if (message.type === 'DIRECTORY_DELETED') {
+    if (
+      currentJob && message.sessionTag === currentJob.sessionTag &&
+      isJobAffectedByDeletedPath(currentJob, message.path)
+    ) {
+      abandonCurrentJob();
+    }
+
     return;
   }
 

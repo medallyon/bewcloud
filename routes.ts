@@ -379,6 +379,7 @@ const routes: Routes = {
   apiFilesUpdateShare: createPageRouteHandler('api/files/update-share.ts', '/api/files/update-share'),
   apiFilesUpdateSort: createPageRouteHandler('api/files/update-sort.ts', '/api/files/update-sort'),
   apiFilesUpload: createPageRouteHandler('api/files/upload.ts', '/api/files/upload'),
+  apiFilesUploadAbort: createPageRouteHandler('api/files/upload-abort.ts', '/api/files/upload-abort'),
   apiFilesUploadChunk: createPageRouteHandler('api/files/upload-chunk.ts', '/api/files/upload-chunk'),
 
   apiNewsAddFeed: createPageRouteHandler('api/news/add-feed.ts', '/api/news/add-feed'),

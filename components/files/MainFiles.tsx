@@ -477,6 +477,13 @@ export default function MainFiles(
         }
 
         directories.value = [...result.newDirectories];
+
+        // Tell the service worker to drop it instead of letting it keep going. Any queued upload still writing into this directory (or a subdirectory of it) is now writing into nothing.
+        navigator.serviceWorker?.controller?.postMessage({
+          type: 'DIRECTORY_DELETED',
+          sessionTag: uploadSessionTag,
+          path: `${parentPath}${name}/`,
+        });
       } catch (error) {
         console.error(error);
       }
