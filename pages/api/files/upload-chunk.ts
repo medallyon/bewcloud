@@ -101,6 +101,22 @@ async function post({ request, user, session }: RequestHandlerParams) {
   // On the first chunk of a new upload, evict any stale sessions from this user.
   if (chunkIndex === 0) {
     await cleanStaleUploads(userUploadDir);
+
+    const targetFilePath = join(filesRootPath, user!.id, parentPath, name.trim());
+
+    try {
+      await Deno.stat(targetFilePath);
+
+      const responseBody: ResponseBody = {
+        success: false,
+        isComplete: true,
+        error: 'A file with this name already exists.',
+      };
+
+      return new Response(JSON.stringify(responseBody));
+    } catch {
+      // Doesn't exist yet, proceed with the upload.
+    }
   }
 
   try {

@@ -4,6 +4,7 @@ import { useEffect } from 'preact/hooks';
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
+import { RequestBody as GetFilesRequestBody, ResponseBody as GetFilesResponseBody } from '/pages/api/files/get.ts';
 
 // 10 MB chunks keep each request faster.
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
@@ -165,17 +166,59 @@ export function useUploadQueue(
     }
   }
 
-  function enqueueUpload(items: UploadQueueItem[]) {
+  // A directory's existing file names, for skipping upload items that would just hit "already exists".
+  async function findExistingNames(parentPath: string): Promise<Set<string>> {
+    try {
+      const requestBody: GetFilesRequestBody = { parentPath };
+
+      const response = await fetch('/api/files/get', { method: 'POST', body: JSON.stringify(requestBody) });
+
+      if (!response.ok) {
+        return new Set();
+      }
+
+      const result = await response.json() as GetFilesResponseBody;
+
+      return new Set(result.files.map((file) => file.file_name));
+    } catch (error) {
+      console.error(error);
+      // Fail open: an upload that turns out to clash still gets caught (just later, by the server) instead of being blocked by this check itself failing.
+      return new Set();
+    }
+  }
+
+  async function enqueueUpload(items: UploadQueueItem[]) {
     if (items.length === 0) {
+      return;
+    }
+
+    isUploading.value = true;
+    uploadProgress.value = '';
+    uploadError.value = '';
+
+    const uniqueParentPaths = [...new Set(items.map((item) => item.parentPath))];
+    const existingNamesByParentPath = new Map(
+      await Promise.all(
+        uniqueParentPaths.map(async (parentPath) => [parentPath, await findExistingNames(parentPath)] as const),
+      ),
+    );
+
+    const itemsToUpload = items.filter((item) => {
+      if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
+        uploadError.value = `${item.file.name}: A file with this name already exists.`;
+        return false;
+      }
+
+      return true;
+    });
+
+    if (itemsToUpload.length === 0) {
+      isUploading.value = false;
       return;
     }
 
     // Capture once: the user may navigate away during a long upload, which would change path.value and cause the final response to refresh the wrong directory listing.
     const pathInView = path.value;
-
-    isUploading.value = true;
-    uploadProgress.value = '';
-    uploadError.value = '';
 
     const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
 
@@ -183,29 +226,27 @@ export function useUploadQueue(
       serviceWorker.postMessage({
         type: 'ENQUEUE_UPLOAD',
         sessionTag: uploadSessionTag,
-        items: items.map((item) => ({ ...item, pathInView, kind: uploadKind })),
+        items: itemsToUpload.map((item) => ({ ...item, pathInView, kind: uploadKind })),
       });
 
       return;
     }
 
     // Fallback for browsers/contexts without an active service worker: upload directly, as before.
-    (async () => {
-      for (const item of items) {
-        try {
-          if (item.file.size >= CHUNK_SIZE_BYTES) {
-            await uploadFileChunked(item.file, item.parentPath, pathInView);
-          } else {
-            await uploadFileSingle(item.file, item.parentPath, pathInView);
-          }
-        } catch (error) {
-          console.error(error);
-          uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
+    for (const item of itemsToUpload) {
+      try {
+        if (item.file.size >= CHUNK_SIZE_BYTES) {
+          await uploadFileChunked(item.file, item.parentPath, pathInView);
+        } else {
+          await uploadFileSingle(item.file, item.parentPath, pathInView);
         }
+      } catch (error) {
+        console.error(error);
+        uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
       }
+    }
 
-      isUploading.value = false;
-    })();
+    isUploading.value = false;
   }
 
   return { isUploading, uploadProgress, uploadError, enqueueUpload };
