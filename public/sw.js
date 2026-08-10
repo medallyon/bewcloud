@@ -52,7 +52,7 @@ function getKindsInProgress(job) {
     return [];
   }
 
-  const kinds = new Set(job.queue.map((item) => item.kind || 'upload'));
+  const kinds = new Set(job.queue.map((item) => item.kind || 'file'));
 
   if (job.currentItemKind) {
     kinds.add(job.currentItemKind);
@@ -163,7 +163,7 @@ async function processQueue(job) {
     const { file, parentPath, pathInView, kind } = job.queue.shift();
 
     job.uploadProgress = '';
-    job.currentItemKind = kind || 'upload';
+    job.currentItemKind = kind || 'file';
     broadcastState();
 
     try {

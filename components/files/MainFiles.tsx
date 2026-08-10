@@ -100,6 +100,7 @@ export default function MainFiles(
     files,
     directories,
     uploadSessionTag,
+    uploadKind: 'file',
   });
 
   function onClickSort(column: SortColumn) {

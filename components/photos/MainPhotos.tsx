@@ -34,6 +34,7 @@ export default function MainPhotos(
     files,
     directories,
     uploadSessionTag,
+    uploadKind: 'photo',
   });
 
   function onClickUploadFile() {
