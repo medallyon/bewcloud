@@ -1,11 +1,11 @@
 import { useSignal } from '@preact/signals';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import {
   RequestBody as CreateDirectoryRequestBody,
   ResponseBody as CreateDirectoryResponseBody,
 } from '/pages/api/files/create-directory.ts';
+import { useUploadQueue } from '/components/files/useUploadQueue.ts';
 import CreateDirectoryModal from '/components/files/CreateDirectoryModal.tsx';
 import ListFiles from '/components/files/ListFiles.tsx';
 import FilesBreadcrumb from '/components/files/FilesBreadcrumb.tsx';
@@ -15,11 +15,13 @@ interface MainPhotosProps {
   initialDirectories: Directory[];
   initialFiles: DirectoryFile[];
   initialPath: string;
+  uploadSessionTag?: string;
 }
 
-export default function MainPhotos({ initialDirectories, initialFiles, initialPath }: MainPhotosProps) {
+export default function MainPhotos(
+  { initialDirectories, initialFiles, initialPath, uploadSessionTag }: MainPhotosProps,
+) {
   const isAdding = useSignal<boolean>(false);
-  const isUploading = useSignal<boolean>(false);
   const directories = useSignal<Directory[]>(initialDirectories);
   const files = useSignal<DirectoryFile[]>(initialFiles);
   const path = useSignal<string>(initialPath);
@@ -29,15 +31,6 @@ export default function MainPhotos({ initialDirectories, initialFiles, initialPa
   // Drag and drop state
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
-
-  // Upload progress state
-  const uploadProgress = useSignal<number>(0);
-  const currentFileName = useSignal<string>('');
-  const totalFiles = useSignal<number>(0);
-  const currentFileIndex = useSignal<number>(0);
-  const showProgressPercent = useSignal<boolean>(false);
-  const progressStartTime = useSignal<number>(0);
-  const isProcessing = useSignal<boolean>(false);
 
   // File conflict resolution state
   const fileConflictModal = useSignal<
@@ -67,127 +60,46 @@ export default function MainPhotos({ initialDirectories, initialFiles, initialPa
     return path.value;
   }
 
-  // Helper function to handle file upload with conflict detection
-  async function uploadFileWithConflictCheck(file: File, targetPath: string): Promise<boolean> {
-    // Check if file already exists and we're not in "replace all" mode
-    if (!replaceAllMode.value && checkFileExists(file.name, targetPath)) {
-      return new Promise((resolve) => {
-        fileConflictModal.value = {
-          isOpen: true,
-          conflictFile: file,
-          existingFileName: file.name,
-          onReplace: async () => {
-            fileConflictModal.value = null;
-            try {
-              const result = await uploadFileWithProgress(file, targetPath);
-              if (result.success) {
-                files.value = [...result.newFiles];
-              }
-              resolve(result.success);
-            } catch (error) {
-              console.error(error);
-              resolve(false);
-            }
-          },
-          onSkip: () => {
-            fileConflictModal.value = null;
-            resolve(true); // Skip counts as "success" to continue with next file
-          },
-          onReplaceAll: async () => {
-            replaceAllMode.value = true;
-            fileConflictModal.value = null;
-            try {
-              const result = await uploadFileWithProgress(file, targetPath);
-              if (result.success) {
-                files.value = [...result.newFiles];
-              }
-              resolve(result.success);
-            } catch (error) {
-              console.error(error);
-              resolve(false);
-            }
-          },
-        };
-      });
-    } else {
-      // No conflict or in replace all mode - upload directly
-      try {
-        const result = await uploadFileWithProgress(file, targetPath);
-        if (result.success) {
-          files.value = [...result.newFiles];
-        }
-        return result.success;
-      } catch (error) {
-        console.error(error);
-        return false;
-      }
+  // Resolves a naming conflict for a single file, prompting the user unless already in "replace all" mode. Returns whether the file should be uploaded.
+  function resolveFileConflict(file: File, targetPath: string): Promise<boolean> {
+    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
+      return Promise.resolve(true);
     }
-  }
 
-  // Helper function to upload a single file with progress tracking
-  function uploadFileWithProgress(file: File, parentPath: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-
-      formData.set('path_in_view', path.value);
-      formData.set('parent_path', parentPath);
-      formData.set('name', file.name);
-      formData.set('contents', file);
-
-      // Reset progress states
-      showProgressPercent.value = false;
-      progressStartTime.value = Date.now();
-      isProcessing.value = false;
-
-      // Timer to show progress after 1 second
-      const progressTimer = setTimeout(() => {
-        showProgressPercent.value = true;
-      }, 1000);
-
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = Math.round((e.loaded / e.total) * 100);
-          uploadProgress.value = percentComplete;
-
-          // If we reach 100%, start showing processing state
-          if (percentComplete >= 100) {
-            isProcessing.value = true;
-          }
-        }
-      });
-
-      xhr.addEventListener('loadstart', () => {
-        // Reset processing state when starting
-        isProcessing.value = false;
-      });
-
-      xhr.addEventListener('load', () => {
-        clearTimeout(progressTimer);
-        isProcessing.value = false;
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            resolve(result);
-          } catch (error) {
-            reject(new Error('Failed to parse response'));
-          }
-        } else {
-          reject(new Error(`Failed to upload file. ${xhr.statusText}`));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        clearTimeout(progressTimer);
-        isProcessing.value = false;
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.open('POST', '/api/files/upload');
-      xhr.send(formData);
+    return new Promise((resolve) => {
+      fileConflictModal.value = {
+        isOpen: true,
+        conflictFile: file,
+        existingFileName: file.name,
+        onReplace: () => {
+          fileConflictModal.value = null;
+          resolve(true);
+        },
+        onSkip: () => {
+          fileConflictModal.value = null;
+          resolve(false);
+        },
+        onReplaceAll: () => {
+          replaceAllMode.value = true;
+          fileConflictModal.value = null;
+          resolve(true);
+        },
+      };
     });
   }
+
+  // Uploads run inside a service worker (public/sw.js) so they survive a page refresh; this hook enqueues files and
+  // hydrates isUploading/uploadProgress/uploadError from its broadcasts. Existing-file checking is done ourselves
+  // above (with a replace/skip/replace-all prompt), so the hook's own blanket skip-if-exists check is disabled here.
+  const { isUploading, uploadProgress, uploadError, enqueueUpload } = useUploadQueue({
+    isEnabled: true,
+    path,
+    files,
+    directories,
+    uploadSessionTag,
+    uploadKind: 'photo',
+    checkExistingFiles: false,
+  });
 
   function onClickUploadFile() {
     const fileInput = document.createElement('input');
@@ -198,40 +110,28 @@ export default function MainPhotos({ initialDirectories, initialFiles, initialPa
 
     fileInput.onchange = async (event) => {
       const chosenFilesList = (event.target as HTMLInputElement)?.files!;
-      const chosenFiles = Array.from(chosenFilesList);
+      const chosenFiles = Array.from(chosenFilesList).filter(Boolean);
 
-      if (chosenFiles.length === 0) return;
+      if (chosenFiles.length === 0) {
+        return;
+      }
 
-      isUploading.value = true;
-      totalFiles.value = chosenFiles.length;
-      currentFileIndex.value = 0;
-      uploadProgress.value = 0;
+      areNewOptionsOption.value = false;
       replaceAllMode.value = false; // Reset replace all mode for new upload session
 
-      for (let i = 0; i < chosenFiles.length; i++) {
-        const chosenFile = chosenFiles[i];
-        if (!chosenFile) continue;
+      const itemsToUpload: { file: File; parentPath: string }[] = [];
 
-        currentFileIndex.value = i + 1;
-        currentFileName.value = chosenFile.name;
-        uploadProgress.value = 0;
-        areNewOptionsOption.value = false;
-
+      for (const chosenFile of chosenFiles) {
         const targetPath = getTargetPath(chosenFile);
-        const success = await uploadFileWithConflictCheck(chosenFile, targetPath);
+        const shouldUpload = await resolveFileConflict(chosenFile, targetPath);
 
-        if (!success) {
-          console.error(`Failed to upload photo: ${chosenFile.name}`);
+        if (shouldUpload) {
+          itemsToUpload.push({ file: chosenFile, parentPath: targetPath });
         }
       }
 
-      isUploading.value = false;
-      uploadProgress.value = 0;
-      currentFileName.value = '';
-      totalFiles.value = 0;
-      currentFileIndex.value = 0;
-      showProgressPercent.value = false;
-      isProcessing.value = false;
+      await enqueueUpload(itemsToUpload);
+
       replaceAllMode.value = false;
     };
   }
@@ -246,33 +146,21 @@ export default function MainPhotos({ initialDirectories, initialFiles, initialPa
     if (photoFiles.length === 0) return;
 
     areNewOptionsOption.value = false;
-    isUploading.value = true;
-    totalFiles.value = photoFiles.length;
-    currentFileIndex.value = 0;
-    uploadProgress.value = 0;
     replaceAllMode.value = false; // Reset replace all mode for new upload session
 
-    for (let i = 0; i < photoFiles.length; i++) {
-      const file = photoFiles[i];
-      currentFileIndex.value = i + 1;
-      currentFileName.value = file.name;
-      uploadProgress.value = 0;
+    const itemsToUpload: { file: File; parentPath: string }[] = [];
 
+    for (const file of photoFiles) {
       const targetPath = getTargetPath(file);
-      const success = await uploadFileWithConflictCheck(file, targetPath);
+      const shouldUpload = await resolveFileConflict(file, targetPath);
 
-      if (!success) {
-        console.error(`Failed to upload photo: ${file.name}`);
+      if (shouldUpload) {
+        itemsToUpload.push({ file, parentPath: targetPath });
       }
     }
 
-    isUploading.value = false;
-    uploadProgress.value = 0;
-    currentFileName.value = '';
-    totalFiles.value = 0;
-    currentFileIndex.value = 0;
-    showProgressPercent.value = false;
-    isProcessing.value = false;
+    await enqueueUpload(itemsToUpload);
+
     replaceAllMode.value = false;
   }
 
@@ -556,17 +444,20 @@ export default function MainPhotos({ initialDirectories, initialFiles, initialPa
             ? (
               <>
                 <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
-                {isProcessing.value
-                  ? `Saving ${currentFileName.value} to disk...`
-                  : `Uploading ${currentFileName.value}${
-                    showProgressPercent.value ? ` (${uploadProgress.value}%)` : '...'
-                  }`}
-                {totalFiles.value > 1 ? ` - File ${currentFileIndex.value} of ${totalFiles.value}` : ''}
+                {uploadProgress.value || 'Uploading...'}
               </>
             )
             : null}
           {!isAdding.value && !isUploading.value ? <>&nbsp;</> : null}
         </span>
+
+        {uploadError.value
+          ? (
+            <span class='flex justify-end items-center text-sm mt-1 mx-2 text-red-400'>
+              Upload failed — {uploadError.value}
+            </span>
+          )
+          : null}
       </section>
 
       <CreateDirectoryModal

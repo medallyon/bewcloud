@@ -3,8 +3,6 @@ import { useEffect } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { SortColumn, sortDirectories, sortFiles, SortOrder } from '/public/ts/utils/files.ts';
-import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
-import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
 import { RequestBody as RenameRequestBody, ResponseBody as RenameResponseBody } from '/pages/api/files/rename.ts';
 import { RequestBody as MoveRequestBody, ResponseBody as MoveResponseBody } from '/pages/api/files/move.ts';
 import { RequestBody as DeleteRequestBody, ResponseBody as DeleteResponseBody } from '/pages/api/files/delete.ts';
@@ -36,6 +34,7 @@ import {
   RequestBody as DeleteShareRequestBody,
   ResponseBody as DeleteShareResponseBody,
 } from '/pages/api/files/delete-share.ts';
+import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
 import ListFiles from './ListFiles.tsx';
 import FilesBreadcrumb from './FilesBreadcrumb.tsx';
@@ -55,6 +54,7 @@ interface MainFilesProps {
   fileShareId?: string;
   initialSortBy?: SortColumn;
   initialSortOrder?: SortOrder;
+  uploadSessionTag?: string;
 }
 
 export default function MainFiles(
@@ -68,11 +68,10 @@ export default function MainFiles(
     fileShareId,
     initialSortBy = 'name',
     initialSortOrder = 'asc',
+    uploadSessionTag,
   }: MainFilesProps,
 ) {
   const isAdding = useSignal<boolean>(false);
-  const isUploading = useSignal<boolean>(false);
-  const uploadProgress = useSignal<string>('');
   const isDeleting = useSignal<boolean>(false);
   const isUpdating = useSignal<boolean>(false);
   const directories = useSignal<Directory[]>(initialDirectories);
@@ -99,11 +98,6 @@ export default function MainFiles(
   // Drag and drop state
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
-
-  // Upload progress state (only used for the direct-upload fallback; the service worker path drives isUploading/uploadProgress via broadcast instead)
-  const currentFileName = useSignal<string>('');
-  const totalFiles = useSignal<number>(0);
-  const currentFileIndex = useSignal<number>(0);
 
   // Directory creation progress state
   const isCreatingDirectories = useSignal<boolean>(false);
@@ -165,61 +159,18 @@ export default function MainFiles(
     });
   }
 
-  // Uploads run inside a service worker (public/sw.js) so they survive a page refresh. This tab just enqueues files and listens for progress here; on mount it also queries whether a job is already running (e.g. right after a refresh) to hydrate the UI from it.
-  useEffect(() => {
-    if (fileShareId || !('serviceWorker' in navigator)) {
-      return;
-    }
-
-    const uploadChannel = new BroadcastChannel('bewcloud-uploads');
-
-    uploadChannel.onmessage = (event) => {
-      const state = event.data as {
-        type: string;
-        isUploading: boolean;
-        uploadProgress: string;
-        newFiles?: DirectoryFile[];
-        newDirectories?: Directory[];
-        pathInView?: string;
-        error?: string;
-      };
-
-      if (!state || state.type !== 'STATE') {
-        return;
-      }
-
-      isUploading.value = state.isUploading;
-      uploadProgress.value = state.uploadProgress || '';
-
-      if (state.error) {
-        console.error(new Error(state.error));
-      }
-
-      // Only apply the file/directory listing from an upload if it matches this tab's own current path; another tab may have uploaded into a different directory.
-      if (state.newFiles && state.pathInView === path.value) {
-        files.value = [...state.newFiles];
-      }
-
-      if (state.newDirectories && state.pathInView === path.value) {
-        directories.value = [...state.newDirectories];
-      }
-    };
-
-    async function queryUploadState() {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        registration.active?.postMessage({ type: 'QUERY_STATE' });
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
-    queryUploadState();
-
-    return () => {
-      uploadChannel.close();
-    };
-  }, []);
+  // Uploads run inside a service worker (public/sw.js) so they survive a page refresh; this hook enqueues files and
+  // hydrates isUploading/uploadProgress/uploadError from its broadcasts. Existing-file checking is done ourselves
+  // above (with a replace/skip/replace-all prompt), so the hook's own blanket skip-if-exists check is disabled here.
+  const { isUploading, uploadProgress, uploadError, enqueueUpload } = useUploadQueue({
+    isEnabled: !fileShareId,
+    path,
+    files,
+    directories,
+    uploadSessionTag,
+    uploadKind: 'file',
+    checkExistingFiles: false,
+  });
 
   function onClickSort(column: SortColumn) {
     let newSortOrder: SortOrder = 'asc';
@@ -248,130 +199,6 @@ export default function MainFiles(
         body: JSON.stringify({ sortBy: column, sortOrder: newSortOrder }),
       }).catch(console.error);
     }
-  }
-
-  // 10 MB chunks keep each request faster.
-  const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
-
-  async function uploadFileSingle(chosenFile: File, parentPath: string) {
-    const requestBody = new FormData();
-    requestBody.set('path_in_view', path.value);
-    requestBody.set('parent_path', parentPath);
-    requestBody.set('name', chosenFile.name);
-    requestBody.set('contents', chosenFile);
-
-    const response = await fetch(`/api/files/upload`, {
-      method: 'POST',
-      body: requestBody,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload file. ${response.statusText} ${await response.text()}`);
-    }
-
-    const result = await response.json() as UploadResponseBody;
-
-    if (!result.success) {
-      throw new Error('Failed to upload file!');
-    }
-
-    files.value = [...result.newFiles];
-    directories.value = [...result.newDirectories];
-  }
-
-  async function uploadFileChunked(chosenFile: File, parentPath: string) {
-    const totalChunks = Math.ceil(chosenFile.size / CHUNK_SIZE_BYTES);
-    const uploadId = crypto.randomUUID();
-    // Capture once — the user may navigate away during a long upload, which would change path.value and cause the final response to refresh the wrong directory listing.
-    const pathInView = path.value;
-
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      uploadProgress.value = `Uploading ${chosenFile.name} (${chunkIndex + 1}/${totalChunks})…`;
-
-      const start = chunkIndex * CHUNK_SIZE_BYTES;
-      const end = Math.min(start + CHUNK_SIZE_BYTES, chosenFile.size);
-      const chunkBlob = chosenFile.slice(start, end);
-
-      const requestBody = new FormData();
-      requestBody.set('upload_id', uploadId);
-      requestBody.set('chunk_index', String(chunkIndex));
-      requestBody.set('total_chunks', String(totalChunks));
-      requestBody.set('path_in_view', pathInView);
-      requestBody.set('parent_path', parentPath);
-      requestBody.set('name', chosenFile.name);
-      requestBody.set('chunk', chunkBlob);
-
-      const response = await fetch(`/api/files/upload-chunk`, {
-        method: 'POST',
-        body: requestBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`,
-        );
-      }
-
-      const result = await response.json() as ChunkUploadResponseBody;
-
-      if (!result.success) {
-        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
-      }
-
-      if (result.isComplete) {
-        files.value = [...result.newFiles!];
-        directories.value = [...result.newDirectories!];
-      }
-    }
-  }
-
-  // Uploads the given files, preferring the service worker (so uploads survive a page refresh) and falling back to a direct sequential upload when no service worker is controlling this page yet.
-  async function uploadFiles(items: { file: File; parentPath: string }[]) {
-    if (items.length === 0) {
-      return;
-    }
-
-    // Capture once: the user may navigate away during upload, which would change path.value and cause the final response to refresh the wrong directory listing.
-    const pathInView = path.value;
-
-    const serviceWorker = navigator.serviceWorker?.controller;
-
-    if (serviceWorker) {
-      serviceWorker.postMessage({
-        type: 'ENQUEUE_UPLOAD',
-        items: items.map(({ file, parentPath }) => ({ file, parentPath, pathInView })),
-      });
-      return;
-    }
-
-    isUploading.value = true;
-    totalFiles.value = items.length;
-    currentFileIndex.value = 0;
-    uploadProgress.value = '';
-
-    for (let i = 0; i < items.length; i++) {
-      const { file, parentPath } = items[i];
-
-      currentFileIndex.value = i + 1;
-      currentFileName.value = file.name;
-      uploadProgress.value = '';
-
-      try {
-        if (file.size >= CHUNK_SIZE_BYTES) {
-          await uploadFileChunked(file, parentPath);
-        } else {
-          await uploadFileSingle(file, parentPath);
-        }
-      } catch (error) {
-        console.error(`Failed to upload file: ${file.name}`, error);
-      }
-    }
-
-    isUploading.value = false;
-    uploadProgress.value = '';
-    currentFileName.value = '';
-    totalFiles.value = 0;
-    currentFileIndex.value = 0;
   }
 
   function onClickUploadFile(uploadDirectory = false) {
@@ -409,7 +236,7 @@ export default function MainFiles(
         }
       }
 
-      await uploadFiles(itemsToUpload);
+      await enqueueUpload(itemsToUpload);
 
       replaceAllMode.value = false;
     };
@@ -433,7 +260,7 @@ export default function MainFiles(
       }
     }
 
-    await uploadFiles(itemsToUpload);
+    await enqueueUpload(itemsToUpload);
 
     replaceAllMode.value = false;
   }
@@ -903,6 +730,13 @@ export default function MainFiles(
         }
 
         directories.value = [...result.newDirectories];
+
+        // Tell the service worker to drop it instead of letting it keep going. Any queued upload still writing into this directory (or a subdirectory of it) is now writing into nothing.
+        await postToUploadServiceWorker({
+          type: 'DIRECTORY_DELETED',
+          sessionTag: uploadSessionTag ?? '',
+          path: `${parentPath}${name}/`,
+        });
       } catch (error) {
         console.error(error);
       }
@@ -1368,8 +1202,7 @@ export default function MainFiles(
             ? (
               <>
                 <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
-                {uploadProgress.value || `Uploading ${currentFileName.value}...`}
-                {totalFiles.value > 1 ? ` - File ${currentFileIndex.value} of ${totalFiles.value}` : ''}
+                {uploadProgress.value || 'Uploading...'}
               </>
             )
             : null}
@@ -1385,6 +1218,14 @@ export default function MainFiles(
             ? <>&nbsp;</>
             : null}
         </span>
+
+        {uploadError.value
+          ? (
+            <span class='flex justify-end items-center text-sm mt-1 mx-2 text-red-400'>
+              Upload failed — {uploadError.value}
+            </span>
+          )
+          : null}
       </section>
 
       {!fileShareId

@@ -105,6 +105,7 @@ export default function Header({ route, user, enabledApps }: Data) {
                   </a>
                   <a
                     href='/logout'
+                    id='logout-link'
                     class={defaultClass}
                   >
                     <img

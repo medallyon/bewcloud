@@ -1,5 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { sortDirectories, sortFiles } from '/public/ts/utils/files.ts';
+import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import ListFiles from "./ListFiles.js";
 import FilesBreadcrumb from "./FilesBreadcrumb.js";
@@ -17,11 +18,10 @@ export default function MainFiles({
   areDirectoryDownloadsAllowed,
   fileShareId,
   initialSortBy = 'name',
-  initialSortOrder = 'asc'
+  initialSortOrder = 'asc',
+  uploadSessionTag
 }) {
   const isAdding = useSignal(false);
-  const isUploading = useSignal(false);
-  const uploadProgress = useSignal('');
   const isDeleting = useSignal(false);
   const isUpdating = useSignal(false);
   const directories = useSignal(initialDirectories);
@@ -40,6 +40,62 @@ export default function MainFiles({
   const moveDirectoryOrFileModal = useSignal(null);
   const createShareModal = useSignal(null);
   const manageShareModal = useSignal(null);
+  const isDraggingOver = useSignal(false);
+  const dragCounter = useSignal(0);
+  const isCreatingDirectories = useSignal(false);
+  const currentDirectoryName = useSignal('');
+  const fileConflictModal = useSignal(null);
+  const replaceAllMode = useSignal(false);
+  function checkFileExists(fileName, targetPath) {
+    const existingFiles = files.value;
+    return existingFiles.some(file => file.file_name === fileName && file.parent_path === targetPath);
+  }
+  function getTargetPath(file) {
+    if (file.webkitRelativePath) {
+      const directoryPath = file.webkitRelativePath.replace(file.name, '');
+      return directoryPath ? `${path.value}${directoryPath}`.replace(/\/+$/, '') : path.value;
+    }
+    return path.value;
+  }
+  function resolveFileConflict(file, targetPath) {
+    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
+      return Promise.resolve(true);
+    }
+    return new Promise(resolve => {
+      fileConflictModal.value = {
+        isOpen: true,
+        conflictFile: file,
+        existingFileName: file.name,
+        onReplace: () => {
+          fileConflictModal.value = null;
+          resolve(true);
+        },
+        onSkip: () => {
+          fileConflictModal.value = null;
+          resolve(false);
+        },
+        onReplaceAll: () => {
+          replaceAllMode.value = true;
+          fileConflictModal.value = null;
+          resolve(true);
+        }
+      };
+    });
+  }
+  const {
+    isUploading,
+    uploadProgress,
+    uploadError,
+    enqueueUpload
+  } = useUploadQueue({
+    isEnabled: !fileShareId,
+    path,
+    files,
+    directories,
+    uploadSessionTag,
+    uploadKind: 'file',
+    checkExistingFiles: false
+  });
   function onClickSort(column) {
     let newSortOrder = 'asc';
     if (sortBy.value === column) {
@@ -69,61 +125,6 @@ export default function MainFiles({
       }).catch(console.error);
     }
   }
-  const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
-  async function uploadFileSingle(chosenFile, parentPath) {
-    const requestBody = new FormData();
-    requestBody.set('path_in_view', path.value);
-    requestBody.set('parent_path', parentPath);
-    requestBody.set('name', chosenFile.name);
-    requestBody.set('contents', chosenFile);
-    const response = await fetch(`/api/files/upload`, {
-      method: 'POST',
-      body: requestBody
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to upload file. ${response.statusText} ${await response.text()}`);
-    }
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error('Failed to upload file!');
-    }
-    files.value = [...result.newFiles];
-    directories.value = [...result.newDirectories];
-  }
-  async function uploadFileChunked(chosenFile, parentPath) {
-    const totalChunks = Math.ceil(chosenFile.size / CHUNK_SIZE_BYTES);
-    const uploadId = crypto.randomUUID();
-    const pathInView = path.value;
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      uploadProgress.value = `Uploading ${chosenFile.name} (${chunkIndex + 1}/${totalChunks})…`;
-      const start = chunkIndex * CHUNK_SIZE_BYTES;
-      const end = Math.min(start + CHUNK_SIZE_BYTES, chosenFile.size);
-      const chunkBlob = chosenFile.slice(start, end);
-      const requestBody = new FormData();
-      requestBody.set('upload_id', uploadId);
-      requestBody.set('chunk_index', String(chunkIndex));
-      requestBody.set('total_chunks', String(totalChunks));
-      requestBody.set('path_in_view', pathInView);
-      requestBody.set('parent_path', parentPath);
-      requestBody.set('name', chosenFile.name);
-      requestBody.set('chunk', chunkBlob);
-      const response = await fetch(`/api/files/upload-chunk`, {
-        method: 'POST',
-        body: requestBody
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
-      }
-      if (result.isComplete) {
-        files.value = [...result.newFiles];
-        directories.value = [...result.newDirectories];
-      }
-    }
-  }
   function onClickUploadFile(uploadDirectory = false) {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -137,31 +138,159 @@ export default function MainFiles({
     fileInput.onchange = async event => {
       const chosenFilesList = event.target?.files;
       const chosenFiles = Array.from(chosenFilesList);
-      isUploading.value = true;
-      uploadProgress.value = '';
+      if (chosenFiles.length === 0) {
+        return;
+      }
+      areNewOptionsOpen.value = false;
+      replaceAllMode.value = false;
+      const itemsToUpload = [];
       for (const chosenFile of chosenFiles) {
-        if (!chosenFile) {
-          continue;
-        }
-        areNewOptionsOpen.value = false;
-        let fileParentPath = path.value;
-        if (chosenFile.webkitRelativePath) {
-          const directoryPath = chosenFile.webkitRelativePath.replace(chosenFile.name, '');
-          fileParentPath = `${path.value}${directoryPath}`;
-        }
-        uploadProgress.value = '';
-        try {
-          if (chosenFile.size >= CHUNK_SIZE_BYTES) {
-            await uploadFileChunked(chosenFile, fileParentPath);
-          } else {
-            await uploadFileSingle(chosenFile, fileParentPath);
-          }
-        } catch (error) {
-          console.error(error);
+        const targetPath = getTargetPath(chosenFile);
+        const shouldUpload = await resolveFileConflict(chosenFile, targetPath);
+        if (shouldUpload) {
+          itemsToUpload.push({
+            file: chosenFile,
+            parentPath: targetPath
+          });
         }
       }
-      isUploading.value = false;
+      await enqueueUpload(itemsToUpload);
+      replaceAllMode.value = false;
     };
+  }
+  async function handleDroppedFiles(droppedFiles) {
+    if (droppedFiles.length === 0) return;
+    areNewOptionsOpen.value = false;
+    replaceAllMode.value = false;
+    const itemsToUpload = [];
+    for (const file of droppedFiles) {
+      const targetPath = getTargetPath(file);
+      const shouldUpload = await resolveFileConflict(file, targetPath);
+      if (shouldUpload) {
+        itemsToUpload.push({
+          file,
+          parentPath: targetPath
+        });
+      }
+    }
+    await enqueueUpload(itemsToUpload);
+    replaceAllMode.value = false;
+  }
+  async function handleDroppedItems(items) {
+    const filesToUpload = [];
+    const directoriesToCreate = [];
+    await processDroppedItems(items, filesToUpload, directoriesToCreate);
+    for (const dirPath of directoriesToCreate) {
+      await createDirectoryFromPath(dirPath);
+    }
+    if (filesToUpload.length > 0) {
+      await handleDroppedFiles(filesToUpload);
+    }
+  }
+  async function processDroppedItems(items, filesToUpload, directoriesToCreate) {
+    const promises = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+          promises.push(processEntry(entry, '', filesToUpload, directoriesToCreate));
+        }
+      }
+    }
+    await Promise.all(promises);
+  }
+  async function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
+    return new Promise((resolve, reject) => {
+      if (entry.isFile) {
+        const fileEntry = entry;
+        fileEntry.file(file => {
+          Object.defineProperty(file, 'webkitRelativePath', {
+            value: currentPath ? `${currentPath}/${file.name}` : file.name,
+            writable: false
+          });
+          filesToUpload.push(file);
+          resolve();
+        }, reject);
+      } else if (entry.isDirectory) {
+        const dirEntry = entry;
+        const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+        const reader = dirEntry.createReader();
+        reader.readEntries(async entries => {
+          try {
+            if (entries.length === 0) {
+              directoriesToCreate.push(dirPath);
+            } else {
+              const promises = entries.map(childEntry => processEntry(childEntry, dirPath, filesToUpload, directoriesToCreate));
+              await Promise.all(promises);
+            }
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        }, reject);
+      } else {
+        resolve();
+      }
+    });
+  }
+  async function createDirectoryFromPath(dirPath) {
+    try {
+      isCreatingDirectories.value = true;
+      currentDirectoryName.value = dirPath;
+      const requestBody = {
+        parentPath: path.value,
+        name: dirPath
+      };
+      const response = await fetch(`/api/files/create-directory`, {
+        method: 'POST',
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to create directory. ${response.statusText} ${await response.text()}`);
+      }
+      const result = await response.json();
+      if (result.success) {
+        directories.value = [...result.newDirectories];
+      }
+    } catch (error) {
+      console.error(`Failed to create directory ${dirPath}:`, error);
+    } finally {
+      isCreatingDirectories.value = false;
+      currentDirectoryName.value = '';
+    }
+  }
+  function handleDragEnter(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.value++;
+    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+      isDraggingOver.value = true;
+    }
+  }
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.value--;
+    if (dragCounter.value === 0) {
+      isDraggingOver.value = false;
+    }
+  }
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingOver.value = false;
+    dragCounter.value = 0;
+    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+      handleDroppedItems(e.dataTransfer.items);
+    } else if (e.dataTransfer?.files) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      handleDroppedFiles(droppedFiles);
+    }
   }
   function onClickCreateDirectory() {
     if (isNewDirectoryModalOpen.value) {
@@ -397,6 +526,11 @@ export default function MainFiles({
           throw new Error('Failed to delete directory!');
         }
         directories.value = [...result.newDirectories];
+        await postToUploadServiceWorker({
+          type: 'DIRECTORY_DELETED',
+          sessionTag: uploadSessionTag ?? '',
+          path: `${parentPath}${name}/`
+        });
       } catch (error) {
         console.error(error);
       }
@@ -600,7 +734,27 @@ export default function MainFiles({
     }
     isDeleting.value = false;
   }
-  return h(Fragment, null, h("section", {
+  return h("div", {
+    class: "relative",
+    onDragEnter: handleDragEnter,
+    onDragLeave: handleDragLeave,
+    onDragOver: handleDragOver,
+    onDrop: handleDrop
+  }, isDraggingOver.value && !fileShareId && h("div", {
+    class: "fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+  }, h("div", {
+    class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
+  }, h("img", {
+    src: "/public/images/add.svg",
+    alt: "Upload",
+    class: "white mx-auto mb-4",
+    width: 48,
+    height: 48
+  }), h("h3", {
+    class: "text-xl font-semibold mb-2"
+  }, "Drop files or directories here to upload"), h("p", {
+    class: "text-sm opacity-90"
+  }, "Release to upload files to the current directory"))), h("section", {
     class: "flex flex-row items-center justify-between mb-4"
   }, h("section", {
     class: "relative inline-block text-left mr-2"
@@ -654,7 +808,7 @@ export default function MainFiles({
   }, h("img", {
     src: "/public/images/add.svg",
     alt: "Add new file or directory",
-    class: `white ${isAdding.value || isUploading.value ? 'animate-spin' : ''}`,
+    class: `white ${isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''}`,
     width: 20,
     height: 20
   }))), h("div", {
@@ -711,7 +865,12 @@ export default function MainFiles({
     class: "white mr-2",
     width: 18,
     height: 18
-  }), "Creating...") : null, isUploading.value ? h(Fragment, null, h("img", {
+  }), "Creating...") : null, isCreatingDirectories.value ? h(Fragment, null, h("img", {
+    src: "/public/images/loading.svg",
+    class: "white mr-2",
+    width: 18,
+    height: 18
+  }), "Creating directory ", currentDirectoryName.value, "...") : null, isUploading.value ? h(Fragment, null, h("img", {
     src: "/public/images/loading.svg",
     class: "white mr-2",
     width: 18,
@@ -721,7 +880,9 @@ export default function MainFiles({
     class: "white mr-2",
     width: 18,
     height: 18
-  }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null)), !fileShareId ? h("section", {
+  }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
+    class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
+  }, "Upload failed \u2014 ", uploadError.value) : null), !fileShareId ? h("section", {
     class: "flex flex-row items-center justify-start my-12"
   }, h("span", {
     class: "font-semibold"
@@ -731,7 +892,31 @@ export default function MainFiles({
     isOpen: isNewDirectoryModalOpen.value,
     onClickSave: onClickSaveDirectory,
     onClose: onCloseCreateDirectory
-  }) : null, !fileShareId ? h(RenameDirectoryOrFileModal, {
+  }) : null, fileConflictModal.value?.isOpen ? h("div", {
+    class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+  }, h("div", {
+    class: "bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl"
+  }, h("h3", {
+    class: "text-lg font-semibold mb-4 text-gray-900"
+  }, "File Already Exists"), h("p", {
+    class: "text-gray-600 mb-6"
+  }, "The file ", h("strong", {
+    class: "text-gray-900"
+  }, fileConflictModal.value.existingFileName), ' ', "already exists in this location. What would you like to do?"), h("div", {
+    class: "flex flex-col sm:flex-row gap-3"
+  }, h("button", {
+    onClick: fileConflictModal.value.onReplace,
+    class: "flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors",
+    type: "button"
+  }, "Replace"), h("button", {
+    onClick: fileConflictModal.value.onSkip,
+    class: "flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors",
+    type: "button"
+  }, "Skip"), h("button", {
+    onClick: fileConflictModal.value.onReplaceAll,
+    class: "flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors",
+    type: "button"
+  }, "Replace All")))) : null, !fileShareId ? h(RenameDirectoryOrFileModal, {
     isOpen: renameDirectoryOrFileModal.value?.isOpen || false,
     isDirectory: renameDirectoryOrFileModal.value?.isDirectory || false,
     initialName: renameDirectoryOrFileModal.value?.name || '',
