@@ -23,6 +23,31 @@ interface UseUploadQueueOptions {
   uploadKind?: 'file' | 'photo' | 'note';
 }
 
+// Messages go to the registration's active worker instead of `navigator.serviceWorker.controller`, because a freshly-installed worker is already active while `controller` is still null until its `clients.claim()` lands, which would silently skip the service worker for the first upload after a hard load.
+export async function postToUploadServiceWorker(message: Record<string, unknown>): Promise<boolean> {
+  if (!('serviceWorker' in navigator)) {
+    return false;
+  }
+
+  try {
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
+    ]);
+
+    if (!registration?.active) {
+      return false;
+    }
+
+    registration.active.postMessage(message);
+
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+}
+
 // Uploads run inside a service worker (public/sw.js) so they survive a page refresh. This tab just enqueues files and listens for progress here; on mount it also queries whether a job is already running (e.g. right after a refresh) to hydrate the UI from it.
 export function useUploadQueue(
   { isEnabled, path, files, directories, uploadSessionTag = '', uploadKind = 'file' }: UseUploadQueueOptions,
@@ -78,16 +103,7 @@ export function useUploadQueue(
       }
     };
 
-    async function queryUploadState() {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        registration.active?.postMessage({ type: 'QUERY_STATE', sessionTag: uploadSessionTag });
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
-    queryUploadState();
+    postToUploadServiceWorker({ type: 'QUERY_STATE', sessionTag: uploadSessionTag });
 
     return () => {
       uploadChannel.close();
@@ -225,15 +241,13 @@ export function useUploadQueue(
       return;
     }
 
-    const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
+    const wasEnqueuedInServiceWorker = isEnabled && await postToUploadServiceWorker({
+      type: 'ENQUEUE_UPLOAD',
+      sessionTag: uploadSessionTag,
+      items: itemsToUpload.map((item) => ({ ...item, pathInView, kind: uploadKind })),
+    });
 
-    if (serviceWorker) {
-      serviceWorker.postMessage({
-        type: 'ENQUEUE_UPLOAD',
-        sessionTag: uploadSessionTag,
-        items: itemsToUpload.map((item) => ({ ...item, pathInView, kind: uploadKind })),
-      });
-
+    if (wasEnqueuedInServiceWorker) {
       return;
     }
 

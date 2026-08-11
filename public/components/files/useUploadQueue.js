@@ -1,6 +1,22 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
+export async function postToUploadServiceWorker(message) {
+  if (!('serviceWorker' in navigator)) {
+    return false;
+  }
+  try {
+    const registration = await Promise.race([navigator.serviceWorker.ready, new Promise(resolve => setTimeout(resolve, 5_000))]);
+    if (!registration?.active) {
+      return false;
+    }
+    registration.active.postMessage(message);
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+}
 export function useUploadQueue({
   isEnabled,
   path,
@@ -38,18 +54,10 @@ export function useUploadQueue({
         directories.value = [...state.newDirectories];
       }
     };
-    async function queryUploadState() {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        registration.active?.postMessage({
-          type: 'QUERY_STATE',
-          sessionTag: uploadSessionTag
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    }
-    queryUploadState();
+    postToUploadServiceWorker({
+      type: 'QUERY_STATE',
+      sessionTag: uploadSessionTag
+    });
     return () => {
       uploadChannel.close();
     };
@@ -150,17 +158,16 @@ export function useUploadQueue({
       isUploading.value = false;
       return;
     }
-    const serviceWorker = isEnabled ? navigator.serviceWorker?.controller : undefined;
-    if (serviceWorker) {
-      serviceWorker.postMessage({
-        type: 'ENQUEUE_UPLOAD',
-        sessionTag: uploadSessionTag,
-        items: itemsToUpload.map(item => ({
-          ...item,
-          pathInView,
-          kind: uploadKind
-        }))
-      });
+    const wasEnqueuedInServiceWorker = isEnabled && (await postToUploadServiceWorker({
+      type: 'ENQUEUE_UPLOAD',
+      sessionTag: uploadSessionTag,
+      items: itemsToUpload.map(item => ({
+        ...item,
+        pathInView,
+        kind: uploadKind
+      }))
+    }));
+    if (wasEnqueuedInServiceWorker) {
       return;
     }
     for (const item of itemsToUpload) {

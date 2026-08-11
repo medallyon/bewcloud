@@ -1,6 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { sortDirectories, sortFiles } from '/public/ts/utils/files.ts';
-import { useUploadQueue } from "./useUploadQueue.js";
+import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import ListFiles from "./ListFiles.js";
 import FilesBreadcrumb from "./FilesBreadcrumb.js";
@@ -346,9 +346,9 @@ export default function MainFiles({
           throw new Error('Failed to delete directory!');
         }
         directories.value = [...result.newDirectories];
-        navigator.serviceWorker?.controller?.postMessage({
+        await postToUploadServiceWorker({
           type: 'DIRECTORY_DELETED',
-          sessionTag: uploadSessionTag,
+          sessionTag: uploadSessionTag ?? '',
           path: `${parentPath}${name}/`
         });
       } catch (error) {

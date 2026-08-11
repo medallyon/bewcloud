@@ -33,7 +33,7 @@ import {
   RequestBody as DeleteShareRequestBody,
   ResponseBody as DeleteShareResponseBody,
 } from '/pages/api/files/delete-share.ts';
-import { useUploadQueue } from './useUploadQueue.ts';
+import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
 import ListFiles from './ListFiles.tsx';
 import FilesBreadcrumb from './FilesBreadcrumb.tsx';
@@ -479,9 +479,9 @@ export default function MainFiles(
         directories.value = [...result.newDirectories];
 
         // Tell the service worker to drop it instead of letting it keep going. Any queued upload still writing into this directory (or a subdirectory of it) is now writing into nothing.
-        navigator.serviceWorker?.controller?.postMessage({
+        await postToUploadServiceWorker({
           type: 'DIRECTORY_DELETED',
-          sessionTag: uploadSessionTag,
+          sessionTag: uploadSessionTag ?? '',
           path: `${parentPath}${name}/`,
         });
       } catch (error) {

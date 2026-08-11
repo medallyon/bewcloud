@@ -10,7 +10,7 @@ import {
   RequestBody as DeleteDirectoryRequestBody,
   ResponseBody as DeleteDirectoryResponseBody,
 } from '/pages/api/files/delete-directory.ts';
-import { useUploadQueue } from '/components/files/useUploadQueue.ts';
+import { postToUploadServiceWorker, useUploadQueue } from '/components/files/useUploadQueue.ts';
 import ListFiles from '/components/files/ListFiles.tsx';
 import FilesBreadcrumb from '/components/files/FilesBreadcrumb.tsx';
 import CreateDirectoryModal from '/components/files/CreateDirectoryModal.tsx';
@@ -160,6 +160,12 @@ export default function MainNotes({ initialDirectories, initialFiles, initialPat
         }
 
         directories.value = [...result.newDirectories];
+
+        await postToUploadServiceWorker({
+          type: 'DIRECTORY_DELETED',
+          sessionTag: uploadSessionTag ?? '',
+          path: `${parentPath}${name}/`,
+        });
       } catch (error) {
         console.error(error);
       }

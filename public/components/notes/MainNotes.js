@@ -1,5 +1,5 @@
 import { useSignal } from '@preact/signals';
-import { useUploadQueue } from "/public/components/files/useUploadQueue.js";
+import { postToUploadServiceWorker, useUploadQueue } from "/public/components/files/useUploadQueue.js";
 import ListFiles from "/public/components/files/ListFiles.js";
 import FilesBreadcrumb from "/public/components/files/FilesBreadcrumb.js";
 import CreateDirectoryModal from "/public/components/files/CreateDirectoryModal.js";
@@ -122,6 +122,11 @@ export default function MainNotes({
           throw new Error('Failed to delete directory!');
         }
         directories.value = [...result.newDirectories];
+        await postToUploadServiceWorker({
+          type: 'DIRECTORY_DELETED',
+          sessionTag: uploadSessionTag ?? '',
+          path: `${parentPath}${name}/`
+        });
       } catch (error) {
         console.error(error);
       }
