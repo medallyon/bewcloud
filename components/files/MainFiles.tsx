@@ -1,5 +1,5 @@
 import { useSignal } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { FileView, SortColumn, sortDirectories, sortFiles, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
@@ -22,6 +22,7 @@ import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
 import FilesList from './FilesList.tsx';
 import FilesGrid from './FilesGrid.tsx';
+import FilesSidebar from './FilesSidebar.tsx';
 import FilesBulkBar from './FilesBulkBar.tsx';
 import FilesEmptyState from './FilesEmptyState.tsx';
 import ConfirmModal, { ConfirmModalState } from './ConfirmModal.tsx';
@@ -82,6 +83,7 @@ export default function MainFiles(
   const sortBy = useSignal<SortColumn>(initialSortBy);
   const sortOrder = useSignal<SortOrder>(initialSortOrder);
   const view = useSignal<FileView>(initialView);
+  const folderDrawer = useRef<HTMLDialogElement>(null);
   const chosenDirectories = useSignal<Pick<Directory, 'parent_path' | 'directory_name'>[]>([]);
   const chosenFiles = useSignal<Pick<DirectoryFile, 'parent_path' | 'file_name'>[]>([]);
   const areNewOptionsOpen = useSignal<boolean>(false);
@@ -684,234 +686,307 @@ export default function MainFiles(
         </div>
       )}
 
-      <section class='sticky top-0 z-20 -mx-2 mb-3 flex flex-wrap items-center gap-2 bg-slate-800 px-2 py-2'>
-        <section class='order-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto'>
-          <FilesBreadcrumb
-            path={path.value}
-            fileShareId={fileShareId}
-            sortBy={sortBy.value}
-            sortOrder={sortOrder.value}
-            view={fileShareId ? undefined : view.value}
-          />
-        </section>
-
-        <section class='order-3 flex w-full items-center gap-2 md:order-2 md:w-auto'>
-          {!fileShareId ? <SearchFiles /> : null}
-
-          {/* Grid view has no column headers, so sorting also needs to be reachable from a menu */}
-          <details class='relative shrink-0' name='files-toolbar-menu'>
-            <summary
-              class='flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white'
-              title='Sort'
-            >
-              <img
-                src={`/public/images/sort-${sortOrder.value === 'asc' ? 'up' : 'down'}.svg`}
-                alt='Sort'
-                class='white w-5 max-w-5'
-                width={20}
-                height={20}
+      <div class='flex gap-4'>
+        {!fileShareId
+          ? (
+            <aside class='hidden w-56 shrink-0 md:block'>
+              <FilesSidebar
+                path={path.value}
+                directories={directories.value}
+                sortBy={sortBy.value}
+                sortOrder={sortOrder.value}
+                view={view.value}
               />
-            </summary>
-            <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
-              {SORT_OPTIONS.map((option) => (
-                <button
-                  key={option.column}
-                  type='button'
-                  class={`flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-slate-600 ${
-                    sortBy.value === option.column ? 'text-accent font-semibold' : 'text-white'
-                  }`}
-                  onClick={() => onClickSort(option.column)}
-                >
-                  {option.label}
-                  {sortBy.value === option.column ? (sortOrder.value === 'asc' ? ' ↑' : ' ↓') : ''}
-                </button>
-              ))}
-            </div>
-          </details>
+            </aside>
+          )
+          : null}
 
-          {!fileShareId
-            ? (
-              <section class='flex shrink-0 items-center rounded-lg border border-slate-600'>
-                {VIEW_OPTIONS.map((option) => (
+        <div class='min-w-0 flex-1'>
+          <section class='sticky top-0 z-20 -mx-2 mb-3 flex flex-wrap items-center gap-2 bg-slate-800 px-2 py-2'>
+            <section class='order-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto'>
+              {!fileShareId
+                ? (
                   <button
-                    key={option.view}
+                    class='flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white md:hidden'
                     type='button'
-                    class={`flex min-h-11 min-w-11 items-center justify-center rounded-lg ${
-                      view.value === option.view ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700'
-                    }`}
-                    aria-pressed={view.value === option.view}
-                    title={option.label}
-                    onClick={() => onClickView(option.view)}
+                    title='Browse folders'
+                    onClick={() => folderDrawer.current?.showModal()}
                   >
                     <img
-                      src={`/public/images/${option.view}-view.svg`}
-                      alt={option.label}
+                      src='/public/images/directory.svg'
+                      alt='Browse folders'
                       class='white w-5 max-w-5'
                       width={20}
                       height={20}
                     />
                   </button>
-                ))}
-              </section>
-            )
-            : null}
+                )
+                : null}
 
-          {!fileShareId
-            ? (
+              <FilesBreadcrumb
+                path={path.value}
+                fileShareId={fileShareId}
+                sortBy={sortBy.value}
+                sortOrder={sortOrder.value}
+                view={fileShareId ? undefined : view.value}
+              />
+            </section>
+
+            <section class='order-3 flex w-full items-center gap-2 md:order-2 md:w-auto'>
+              {!fileShareId ? <SearchFiles /> : null}
+
+              {/* Grid view has no column headers, so sorting also needs to be reachable from a menu */}
               <details class='relative shrink-0' name='files-toolbar-menu'>
                 <summary
-                  class='flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-color hover:bg-accent-hover'
-                  title='Add new file or directory'
+                  class='flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white'
+                  title='Sort'
                 >
                   <img
-                    src='/public/images/add.svg'
-                    alt=''
-                    class={`white ${
-                      isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''
-                    }`}
+                    src={`/public/images/sort-${sortOrder.value === 'asc' ? 'up' : 'down'}.svg`}
+                    alt='Sort'
+                    class='white w-5 max-w-5'
                     width={20}
                     height={20}
                   />
-                  New
                 </summary>
                 <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
-                  <button
-                    class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
-                    onClick={() => onClickUploadFile()}
-                    type='button'
-                  >
-                    Upload files
-                  </button>
-                  <button
-                    class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
-                    onClick={() => onClickUploadFile(true)}
-                    type='button'
-                  >
-                    Upload directory
-                  </button>
-                  <button
-                    class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
-                    onClick={() => onClickCreateDirectory()}
-                    type='button'
-                  >
-                    New directory
-                  </button>
+                  {SORT_OPTIONS.map((option) => (
+                    <button
+                      key={option.column}
+                      type='button'
+                      class={`flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-slate-600 ${
+                        sortBy.value === option.column ? 'text-accent font-semibold' : 'text-white'
+                      }`}
+                      onClick={() => onClickSort(option.column)}
+                    >
+                      {option.label}
+                      {sortBy.value === option.column ? (sortOrder.value === 'asc' ? ' ↑' : ' ↓') : ''}
+                    </button>
+                  ))}
                 </div>
               </details>
-            )
-            : null}
-        </section>
-      </section>
 
-      <section class='my-2'>
-        {!fileShareId
-          ? (
-            <FilesBulkBar
-              chosenItemsCount={chosenKeys.length}
-              onClickDelete={onClickBulkDelete}
-              onClickClear={() => onToggleChooseAll(false)}
-            />
-          )
-          : null}
+              {!fileShareId
+                ? (
+                  <section class='flex shrink-0 items-center rounded-lg border border-slate-600'>
+                    {VIEW_OPTIONS.map((option) => (
+                      <button
+                        key={option.view}
+                        type='button'
+                        class={`flex min-h-11 min-w-11 items-center justify-center rounded-lg ${
+                          view.value === option.view ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                        }`}
+                        aria-pressed={view.value === option.view}
+                        title={option.label}
+                        onClick={() => onClickView(option.view)}
+                      >
+                        <img
+                          src={`/public/images/${option.view}-view.svg`}
+                          alt={option.label}
+                          class='white w-5 max-w-5'
+                          width={20}
+                          height={20}
+                        />
+                      </button>
+                    ))}
+                  </section>
+                )
+                : null}
 
-        {items.length === 0
-          ? (
-            <FilesEmptyState
-              itemPluralLabel='files'
-              isTrash={path.value === TRASH_PATH}
-              onClickUpload={fileShareId ? undefined : () => onClickUploadFile()}
-            />
-          )
-          : view.value === 'grid'
-          ? (
-            <FilesGrid
-              items={items}
-              chosenKeys={chosenKeys}
-              isSelectable={!fileShareId}
-              areThumbnailsAvailable={!fileShareId}
-              onToggleChoose={onToggleChoose}
-              onClickRename={fileShareId ? undefined : onClickOpenRename}
-              onClickMove={fileShareId ? undefined : onClickOpenMove}
-              onClickDelete={fileShareId ? undefined : onClickDelete}
-              onClickDownload={!fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
-              onClickCreateShare={!fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined}
-              onClickManageShare={!fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined}
-            />
-          )
-          : (
-            <FilesList
-              items={items}
-              chosenKeys={chosenKeys}
-              areAllItemsChosen={areAllItemsChosen}
-              areSomeItemsChosen={areSomeItemsChosen}
-              isSelectable={!fileShareId}
-              sortBy={sortBy.value}
-              sortOrder={sortOrder.value}
-              onClickSort={onClickSort}
-              onToggleChoose={onToggleChoose}
-              onToggleChooseAll={onToggleChooseAll}
-              onClickRename={fileShareId ? undefined : onClickOpenRename}
-              onClickMove={fileShareId ? undefined : onClickOpenMove}
-              onClickDelete={fileShareId ? undefined : onClickDelete}
-              onClickDownload={!fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
-              onClickCreateShare={!fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined}
-              onClickManageShare={!fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined}
-            />
-          )}
+              {!fileShareId
+                ? (
+                  <details class='relative shrink-0' name='files-toolbar-menu'>
+                    <summary
+                      class='flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-color hover:bg-accent-hover'
+                      title='Add new file or directory'
+                    >
+                      <img
+                        src='/public/images/add.svg'
+                        alt=''
+                        class={`white ${
+                          isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''
+                        }`}
+                        width={20}
+                        height={20}
+                      />
+                      New
+                    </summary>
+                    <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
+                      <button
+                        class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
+                        onClick={() => onClickUploadFile()}
+                        type='button'
+                      >
+                        Upload files
+                      </button>
+                      <button
+                        class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
+                        onClick={() => onClickUploadFile(true)}
+                        type='button'
+                      >
+                        Upload directory
+                      </button>
+                      <button
+                        class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
+                        onClick={() => onClickCreateDirectory()}
+                        type='button'
+                      >
+                        New directory
+                      </button>
+                    </div>
+                  </details>
+                )
+                : null}
+            </section>
+          </section>
 
-        <span
-          class={`flex justify-end items-center text-sm mt-1 mx-2 text-slate-100`}
-        >
-          {isDeleting.value
-            ? (
-              <>
-                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Deleting...
-              </>
-            )
-            : null}
-          {isAdding.value
-            ? (
-              <>
-                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Creating...
-              </>
-            )
-            : null}
-          {isCreatingDirectories.value
-            ? (
-              <>
-                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
-                Creating directory {currentDirectoryName.value}...
-              </>
-            )
-            : null}
-          {isUploading.value
-            ? (
-              <>
-                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
-                {uploadProgress.value || 'Uploading...'}
-              </>
-            )
-            : null}
-          {isUpdating.value
-            ? (
-              <>
-                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Updating...
-              </>
-            )
-            : null}
-          {!isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isUploading.value &&
-              !isUpdating.value
-            ? <>&nbsp;</>
-            : null}
-        </span>
-      </section>
+          <section class='my-2'>
+            {!fileShareId
+              ? (
+                <FilesBulkBar
+                  chosenItemsCount={chosenKeys.length}
+                  onClickDelete={onClickBulkDelete}
+                  onClickClear={() => onToggleChooseAll(false)}
+                />
+              )
+              : null}
 
+            {items.length === 0
+              ? (
+                <FilesEmptyState
+                  itemPluralLabel='files'
+                  isTrash={path.value === TRASH_PATH}
+                  onClickUpload={fileShareId ? undefined : () => onClickUploadFile()}
+                />
+              )
+              : view.value === 'grid'
+              ? (
+                <FilesGrid
+                  items={items}
+                  chosenKeys={chosenKeys}
+                  isSelectable={!fileShareId}
+                  areThumbnailsAvailable={!fileShareId}
+                  onToggleChoose={onToggleChoose}
+                  onClickRename={fileShareId ? undefined : onClickOpenRename}
+                  onClickMove={fileShareId ? undefined : onClickOpenMove}
+                  onClickDelete={fileShareId ? undefined : onClickDelete}
+                  onClickDownload={!fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
+                  onClickCreateShare={!fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined}
+                  onClickManageShare={!fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined}
+                />
+              )
+              : (
+                <FilesList
+                  items={items}
+                  chosenKeys={chosenKeys}
+                  areAllItemsChosen={areAllItemsChosen}
+                  areSomeItemsChosen={areSomeItemsChosen}
+                  isSelectable={!fileShareId}
+                  sortBy={sortBy.value}
+                  sortOrder={sortOrder.value}
+                  onClickSort={onClickSort}
+                  onToggleChoose={onToggleChoose}
+                  onToggleChooseAll={onToggleChooseAll}
+                  onClickRename={fileShareId ? undefined : onClickOpenRename}
+                  onClickMove={fileShareId ? undefined : onClickOpenMove}
+                  onClickDelete={fileShareId ? undefined : onClickDelete}
+                  onClickDownload={!fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
+                  onClickCreateShare={!fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined}
+                  onClickManageShare={!fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined}
+                />
+              )}
+
+            <span
+              class={`flex justify-end items-center text-sm mt-1 mx-2 text-slate-100`}
+            >
+              {isDeleting.value
+                ? (
+                  <>
+                    <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Deleting...
+                  </>
+                )
+                : null}
+              {isAdding.value
+                ? (
+                  <>
+                    <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Creating...
+                  </>
+                )
+                : null}
+              {isCreatingDirectories.value
+                ? (
+                  <>
+                    <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
+                    Creating directory {currentDirectoryName.value}...
+                  </>
+                )
+                : null}
+              {isUploading.value
+                ? (
+                  <>
+                    <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
+                    {uploadProgress.value || 'Uploading...'}
+                  </>
+                )
+                : null}
+              {isUpdating.value
+                ? (
+                  <>
+                    <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />Updating...
+                  </>
+                )
+                : null}
+              {!isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isUploading.value &&
+                  !isUpdating.value
+                ? <>&nbsp;</>
+                : null}
+            </span>
+          </section>
+
+          {!fileShareId
+            ? (
+              <section class='flex flex-row items-center justify-start my-12'>
+                <span class='font-semibold'>WebDav URL:</span>{' '}
+                <code class='bg-slate-600 mx-2 px-2 py-1 rounded-md'>{baseUrl}/dav</code>
+              </section>
+            )
+            : null}
+        </div>
+      </div>
+
+      {/* Native <dialog> gives the mobile drawer its focus trap, Escape handling and backdrop for free */}
       {!fileShareId
         ? (
-          <section class='flex flex-row items-center justify-start my-12'>
-            <span class='font-semibold'>WebDav URL:</span>{' '}
-            <code class='bg-slate-600 mx-2 px-2 py-1 rounded-md'>{baseUrl}/dav</code>
-          </section>
+          <dialog
+            ref={folderDrawer}
+            class='m-0 h-full max-h-none w-72 max-w-[85vw] bg-slate-800 p-4 text-white backdrop:bg-black/50 md:hidden'
+            onClick={(event) => {
+              // Clicks land on the dialog itself only when they hit the backdrop
+              if (event.target === folderDrawer.current) {
+                folderDrawer.current?.close();
+              }
+            }}
+          >
+            <header class='mb-2 flex items-center justify-between'>
+              <h2 class='text-lg font-semibold'>Folders</h2>
+              <button
+                class='min-h-11 min-w-11 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white'
+                type='button'
+                aria-label='Close'
+                onClick={() => folderDrawer.current?.close()}
+              >
+                ✕
+              </button>
+            </header>
+
+            <FilesSidebar
+              path={path.value}
+              directories={directories.value}
+              sortBy={sortBy.value}
+              sortOrder={sortOrder.value}
+              view={view.value}
+            />
+          </dialog>
         )
         : null}
 

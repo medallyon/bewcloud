@@ -1,5 +1,5 @@
 import { useSignal } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { sortDirectories, sortFiles, TRASH_PATH } from '/public/ts/utils/files.ts';
 import { createDirectory, createFileShare, deleteDirectory, deleteFile, deleteFileShare, moveDirectory, moveFile, renameDirectory, renameFile, updateFileShare } from "./fileActions.js";
 import { useFileUploadDrop } from "./useFileUploadDrop.js";
@@ -8,6 +8,7 @@ import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import FilesList from "./FilesList.js";
 import FilesGrid from "./FilesGrid.js";
+import FilesSidebar from "./FilesSidebar.js";
 import FilesBulkBar from "./FilesBulkBar.js";
 import FilesEmptyState from "./FilesEmptyState.js";
 import ConfirmModal from "./ConfirmModal.js";
@@ -57,6 +58,7 @@ export default function MainFiles({
   const sortBy = useSignal(initialSortBy);
   const sortOrder = useSignal(initialSortOrder);
   const view = useSignal(initialView);
+  const folderDrawer = useRef(null);
   const chosenDirectories = useSignal([]);
   const chosenFiles = useSignal([]);
   const areNewOptionsOpen = useSignal(false);
@@ -525,11 +527,34 @@ export default function MainFiles({
     class: "text-xl font-semibold mb-2"
   }, "Drop files or directories here to upload"), h("p", {
     class: "text-sm opacity-90"
-  }, "Release to upload files to the current directory"))), h("section", {
+  }, "Release to upload files to the current directory"))), h("div", {
+    class: "flex gap-4"
+  }, !fileShareId ? h("aside", {
+    class: "hidden w-56 shrink-0 md:block"
+  }, h(FilesSidebar, {
+    path: path.value,
+    directories: directories.value,
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+    view: view.value
+  })) : null, h("div", {
+    class: "min-w-0 flex-1"
+  }, h("section", {
     class: "sticky top-0 z-20 -mx-2 mb-3 flex flex-wrap items-center gap-2 bg-slate-800 px-2 py-2"
   }, h("section", {
     class: "order-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
-  }, h(FilesBreadcrumb, {
+  }, !fileShareId ? h("button", {
+    class: "flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white md:hidden",
+    type: "button",
+    title: "Browse folders",
+    onClick: () => folderDrawer.current?.showModal()
+  }, h("img", {
+    src: "/public/images/directory.svg",
+    alt: "Browse folders",
+    class: "white w-5 max-w-5",
+    width: 20,
+    height: 20
+  })) : null, h(FilesBreadcrumb, {
     path: path.value,
     fileShareId: fileShareId,
     sortBy: sortBy.value,
@@ -669,7 +694,30 @@ export default function MainFiles({
     class: "font-semibold"
   }, "WebDav URL:"), ' ', h("code", {
     class: "bg-slate-600 mx-2 px-2 py-1 rounded-md"
-  }, baseUrl, "/dav")) : null, h(ConfirmModal, {
+  }, baseUrl, "/dav")) : null)), !fileShareId ? h("dialog", {
+    ref: folderDrawer,
+    class: "m-0 h-full max-h-none w-72 max-w-[85vw] bg-slate-800 p-4 text-white backdrop:bg-black/50 md:hidden",
+    onClick: event => {
+      if (event.target === folderDrawer.current) {
+        folderDrawer.current?.close();
+      }
+    }
+  }, h("header", {
+    class: "mb-2 flex items-center justify-between"
+  }, h("h2", {
+    class: "text-lg font-semibold"
+  }, "Folders"), h("button", {
+    class: "min-h-11 min-w-11 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white",
+    type: "button",
+    "aria-label": "Close",
+    onClick: () => folderDrawer.current?.close()
+  }, "\u2715")), h(FilesSidebar, {
+    path: path.value,
+    directories: directories.value,
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+    view: view.value
+  })) : null, h(ConfirmModal, {
     state: confirmModal.value,
     onClose: () => confirmModal.value = null
   }), !fileShareId ? h(CreateDirectoryModal, {
