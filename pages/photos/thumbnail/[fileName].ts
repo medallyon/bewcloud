@@ -16,8 +16,9 @@ async function get({ request, user, match }: RequestHandlerParams): Promise<Resp
     throw new Error('NotFound');
   }
 
-  if (!(await AppConfig.isAppEnabled('photos'))) {
-    throw new Error('Photos app is not enabled');
+  // Serves both /photos/thumbnail/:fileName and /files/thumbnail/:fileName, so either app being enabled is enough
+  if (!(await AppConfig.isAppEnabled('photos')) && !(await AppConfig.isAppEnabled('files'))) {
+    throw new Error('Photos and files apps are not enabled');
   }
 
   const searchParams = new URL(request.url).searchParams;

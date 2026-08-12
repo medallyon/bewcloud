@@ -1,5 +1,5 @@
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { SortColumn, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
+import { FileView, SortColumn, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
 
 // Directories and files arrive as two differently-shaped arrays. Normalising them once lets the list and the grid iterate a single array instead of duplicating markup per shape.
 export interface FileItem {
@@ -30,14 +30,19 @@ interface ToFileItemsOptions {
   routePath: string;
   sortBy: SortColumn;
   sortOrder: SortOrder;
+  view?: FileView;
 }
 
 export function toFileItems(
   directories: Directory[],
   files: DirectoryFile[],
-  { routePath, sortBy, sortOrder }: ToFileItemsOptions,
+  { routePath, sortBy, sortOrder, view }: ToFileItemsOptions,
 ): FileItem[] {
   const searchParams = new URLSearchParams({ sortBy, sortOrder });
+
+  if (view) {
+    searchParams.set('view', view);
+  }
 
   const directoryItems: FileItem[] = directories.map((directory) => {
     const fullPath = `${directory.parent_path}${directory.directory_name}/`;

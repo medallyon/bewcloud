@@ -2,12 +2,16 @@ import { TRASH_PATH } from '/public/ts/utils/files.ts';
 export function toFileItems(directories, files, {
   routePath,
   sortBy,
-  sortOrder
+  sortOrder,
+  view
 }) {
   const searchParams = new URLSearchParams({
     sortBy,
     sortOrder
   });
+  if (view) {
+    searchParams.set('view', view);
+  }
   const directoryItems = directories.map(directory => {
     const fullPath = `${directory.parent_path}${directory.directory_name}/`;
     return {

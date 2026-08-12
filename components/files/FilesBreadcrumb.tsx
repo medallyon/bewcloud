@@ -1,4 +1,4 @@
-import { SortColumn, SortOrder } from '/public/ts/utils/files.ts';
+import { FileView, SortColumn, SortOrder } from '/public/ts/utils/files.ts';
 
 interface FilesBreadcrumbProps {
   path: string;
@@ -7,6 +7,7 @@ interface FilesBreadcrumbProps {
   fileShareId?: string;
   sortBy?: SortColumn;
   sortOrder?: SortOrder;
+  view?: FileView;
 }
 
 const crumbClass = 'inline-flex min-h-11 items-center font-normal text-white hover:underline';
@@ -18,6 +19,7 @@ export default function FilesBreadcrumb({
   fileShareId,
   sortBy = 'name',
   sortOrder = 'asc',
+  view,
 }: FilesBreadcrumbProps) {
   let routePath = fileShareId ? `file-share/${fileShareId}` : 'files';
   let rootPath = '/';
@@ -34,6 +36,10 @@ export default function FilesBreadcrumb({
   }
 
   const commonSearchParams = new URLSearchParams({ sortBy, sortOrder });
+
+  if (view) {
+    commonSearchParams.set('view', view);
+  }
   const rootHref = `/${routePath}?path=${encodeURIComponent(rootPath)}&${commonSearchParams.toString()}`;
   const pathParts = path === rootPath ? [] : path.slice(1, -1).split('/');
 

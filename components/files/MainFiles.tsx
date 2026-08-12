@@ -2,7 +2,7 @@ import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { SortColumn, sortDirectories, sortFiles, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
+import { FileView, SortColumn, sortDirectories, sortFiles, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
 import {
   createDirectory,
   createFileShare,
@@ -16,10 +16,12 @@ import {
   updateFileShare,
 } from './fileActions.ts';
 import { useFileUploadDrop } from './useFileUploadDrop.ts';
+import { RequestBody as UpdateSortRequestBody } from '/pages/api/files/update-sort.ts';
 import { showToast } from '/public/ts/utils/toast.ts';
 import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
 import FilesList from './FilesList.tsx';
+import FilesGrid from './FilesGrid.tsx';
 import FilesBulkBar from './FilesBulkBar.tsx';
 import FilesEmptyState from './FilesEmptyState.tsx';
 import ConfirmModal, { ConfirmModalState } from './ConfirmModal.tsx';
@@ -30,6 +32,11 @@ import RenameDirectoryOrFileModal from './RenameDirectoryOrFileModal.tsx';
 import MoveDirectoryOrFileModal from './MoveDirectoryOrFileModal.tsx';
 import CreateShareModal from './CreateShareModal.tsx';
 import ManageShareModal from './ManageShareModal.tsx';
+
+const VIEW_OPTIONS: { view: FileView; label: string }[] = [
+  { view: 'list', label: 'List view' },
+  { view: 'grid', label: 'Grid view' },
+];
 
 const SORT_OPTIONS: { column: SortColumn; label: string }[] = [
   { column: 'name', label: 'Name' },
@@ -47,6 +54,7 @@ interface MainFilesProps {
   fileShareId?: string;
   initialSortBy?: SortColumn;
   initialSortOrder?: SortOrder;
+  initialView?: FileView;
   uploadSessionTag?: string;
 }
 
@@ -61,6 +69,7 @@ export default function MainFiles(
     fileShareId,
     initialSortBy = 'name',
     initialSortOrder = 'asc',
+    initialView = 'list',
     uploadSessionTag,
   }: MainFilesProps,
 ) {
@@ -72,6 +81,7 @@ export default function MainFiles(
   const path = useSignal<string>(initialPath);
   const sortBy = useSignal<SortColumn>(initialSortBy);
   const sortOrder = useSignal<SortOrder>(initialSortOrder);
+  const view = useSignal<FileView>(initialView);
   const chosenDirectories = useSignal<Pick<Directory, 'parent_path' | 'directory_name'>[]>([]);
   const chosenFiles = useSignal<Pick<DirectoryFile, 'parent_path' | 'file_name'>[]>([]);
   const areNewOptionsOpen = useSignal<boolean>(false);
@@ -121,6 +131,7 @@ export default function MainFiles(
     routePath: fileShareId ? `file-share/${fileShareId}` : 'files',
     sortBy: sortBy.value,
     sortOrder: sortOrder.value,
+    view: fileShareId ? undefined : view.value,
   });
   const chosenKeys = [
     ...chosenDirectories.value.map((directory) => `${directory.parent_path}${directory.directory_name}/`),
@@ -171,12 +182,36 @@ export default function MainFiles(
     url.searchParams.set('sortOrder', newSortOrder);
     window.history.replaceState({}, '', url.toString());
 
-    if (!fileShareId) {
-      fetch('/api/files/update-sort', {
-        method: 'POST',
-        body: JSON.stringify({ sortBy: column, sortOrder: newSortOrder }),
-      }).catch(console.error);
+    saveViewPreferences({ sortBy: column, sortOrder: newSortOrder });
+  }
+
+  async function saveViewPreferences(requestBody: UpdateSortRequestBody) {
+    if (fileShareId) {
+      return;
     }
+
+    try {
+      const response = await fetch('/api/files/update-sort', {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save view preferences. ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  function onClickView(newView: FileView) {
+    view.value = newView;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', newView);
+    window.history.replaceState({}, '', url.toString());
+
+    saveViewPreferences({ sortBy: sortBy.value, sortOrder: sortOrder.value, view: newView });
   }
 
   function onClickUploadFile(uploadDirectory = false) {
@@ -656,6 +691,7 @@ export default function MainFiles(
             fileShareId={fileShareId}
             sortBy={sortBy.value}
             sortOrder={sortOrder.value}
+            view={fileShareId ? undefined : view.value}
           />
         </section>
 
@@ -692,6 +728,33 @@ export default function MainFiles(
               ))}
             </div>
           </details>
+
+          {!fileShareId
+            ? (
+              <section class='flex shrink-0 items-center rounded-lg border border-slate-600'>
+                {VIEW_OPTIONS.map((option) => (
+                  <button
+                    key={option.view}
+                    type='button'
+                    class={`flex min-h-11 min-w-11 items-center justify-center rounded-lg ${
+                      view.value === option.view ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                    }`}
+                    aria-pressed={view.value === option.view}
+                    title={option.label}
+                    onClick={() => onClickView(option.view)}
+                  >
+                    <img
+                      src={`/public/images/${option.view}-view.svg`}
+                      alt={option.label}
+                      class='white w-5 max-w-5'
+                      width={20}
+                      height={20}
+                    />
+                  </button>
+                ))}
+              </section>
+            )
+            : null}
 
           {!fileShareId
             ? (
@@ -757,6 +820,22 @@ export default function MainFiles(
               itemPluralLabel='files'
               isTrash={path.value === TRASH_PATH}
               onClickUpload={fileShareId ? undefined : () => onClickUploadFile()}
+            />
+          )
+          : view.value === 'grid'
+          ? (
+            <FilesGrid
+              items={items}
+              chosenKeys={chosenKeys}
+              isSelectable={!fileShareId}
+              areThumbnailsAvailable={!fileShareId}
+              onToggleChoose={onToggleChoose}
+              onClickRename={fileShareId ? undefined : onClickOpenRename}
+              onClickMove={fileShareId ? undefined : onClickOpenMove}
+              onClickDelete={fileShareId ? undefined : onClickDelete}
+              onClickDownload={!fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
+              onClickCreateShare={!fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined}
+              onClickManageShare={!fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined}
             />
           )
           : (

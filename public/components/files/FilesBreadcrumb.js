@@ -5,7 +5,8 @@ export default function FilesBreadcrumb({
   isShowingPhotos,
   fileShareId,
   sortBy = 'name',
-  sortOrder = 'asc'
+  sortOrder = 'asc',
+  view
 }) {
   let routePath = fileShareId ? `file-share/${fileShareId}` : 'files';
   let rootPath = '/';
@@ -23,6 +24,9 @@ export default function FilesBreadcrumb({
     sortBy,
     sortOrder
   });
+  if (view) {
+    commonSearchParams.set('view', view);
+  }
   const rootHref = `/${routePath}?path=${encodeURIComponent(rootPath)}&${commonSearchParams.toString()}`;
   const pathParts = path === rootPath ? [] : path.slice(1, -1).split('/');
   return h("nav", {

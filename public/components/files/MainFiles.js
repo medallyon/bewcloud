@@ -7,6 +7,7 @@ import { showToast } from '/public/ts/utils/toast.ts';
 import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import FilesList from "./FilesList.js";
+import FilesGrid from "./FilesGrid.js";
 import FilesBulkBar from "./FilesBulkBar.js";
 import FilesEmptyState from "./FilesEmptyState.js";
 import ConfirmModal from "./ConfirmModal.js";
@@ -17,6 +18,13 @@ import RenameDirectoryOrFileModal from "./RenameDirectoryOrFileModal.js";
 import MoveDirectoryOrFileModal from "./MoveDirectoryOrFileModal.js";
 import CreateShareModal from "./CreateShareModal.js";
 import ManageShareModal from "./ManageShareModal.js";
+const VIEW_OPTIONS = [{
+  view: 'list',
+  label: 'List view'
+}, {
+  view: 'grid',
+  label: 'Grid view'
+}];
 const SORT_OPTIONS = [{
   column: 'name',
   label: 'Name'
@@ -37,6 +45,7 @@ export default function MainFiles({
   fileShareId,
   initialSortBy = 'name',
   initialSortOrder = 'asc',
+  initialView = 'list',
   uploadSessionTag
 }) {
   const isAdding = useSignal(false);
@@ -47,6 +56,7 @@ export default function MainFiles({
   const path = useSignal(initialPath);
   const sortBy = useSignal(initialSortBy);
   const sortOrder = useSignal(initialSortOrder);
+  const view = useSignal(initialView);
   const chosenDirectories = useSignal([]);
   const chosenFiles = useSignal([]);
   const areNewOptionsOpen = useSignal(false);
@@ -89,7 +99,8 @@ export default function MainFiles({
   const items = toFileItems(directories.value, files.value, {
     routePath: fileShareId ? `file-share/${fileShareId}` : 'files',
     sortBy: sortBy.value,
-    sortOrder: sortOrder.value
+    sortOrder: sortOrder.value,
+    view: fileShareId ? undefined : view.value
   });
   const chosenKeys = [...chosenDirectories.value.map(directory => `${directory.parent_path}${directory.directory_name}/`), ...chosenFiles.value.map(file => `${file.parent_path}${file.file_name}`)];
   const choosableItemsCount = items.filter(item => !item.isTrash).length;
@@ -128,15 +139,37 @@ export default function MainFiles({
     url.searchParams.set('sortBy', column);
     url.searchParams.set('sortOrder', newSortOrder);
     window.history.replaceState({}, '', url.toString());
-    if (!fileShareId) {
-      fetch('/api/files/update-sort', {
-        method: 'POST',
-        body: JSON.stringify({
-          sortBy: column,
-          sortOrder: newSortOrder
-        })
-      }).catch(console.error);
+    saveViewPreferences({
+      sortBy: column,
+      sortOrder: newSortOrder
+    });
+  }
+  async function saveViewPreferences(requestBody) {
+    if (fileShareId) {
+      return;
     }
+    try {
+      const response = await fetch('/api/files/update-sort', {
+        method: 'POST',
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to save view preferences. ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  function onClickView(newView) {
+    view.value = newView;
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', newView);
+    window.history.replaceState({}, '', url.toString());
+    saveViewPreferences({
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      view: newView
+    });
   }
   function onClickUploadFile(uploadDirectory = false) {
     const fileInput = document.createElement('input');
@@ -500,7 +533,8 @@ export default function MainFiles({
     path: path.value,
     fileShareId: fileShareId,
     sortBy: sortBy.value,
-    sortOrder: sortOrder.value
+    sortOrder: sortOrder.value,
+    view: fileShareId ? undefined : view.value
   })), h("section", {
     class: "order-3 flex w-full items-center gap-2 md:order-2 md:w-auto"
   }, !fileShareId ? h(SearchFiles, null) : null, h("details", {
@@ -522,7 +556,22 @@ export default function MainFiles({
     type: "button",
     class: `flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-slate-600 ${sortBy.value === option.column ? 'text-accent font-semibold' : 'text-white'}`,
     onClick: () => onClickSort(option.column)
-  }, option.label, sortBy.value === option.column ? sortOrder.value === 'asc' ? ' ↑' : ' ↓' : '')))), !fileShareId ? h("details", {
+  }, option.label, sortBy.value === option.column ? sortOrder.value === 'asc' ? ' ↑' : ' ↓' : '')))), !fileShareId ? h("section", {
+    class: "flex shrink-0 items-center rounded-lg border border-slate-600"
+  }, VIEW_OPTIONS.map(option => h("button", {
+    key: option.view,
+    type: "button",
+    class: `flex min-h-11 min-w-11 items-center justify-center rounded-lg ${view.value === option.view ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`,
+    "aria-pressed": view.value === option.view,
+    title: option.label,
+    onClick: () => onClickView(option.view)
+  }, h("img", {
+    src: `/public/images/${option.view}-view.svg`,
+    alt: option.label,
+    class: "white w-5 max-w-5",
+    width: 20,
+    height: 20
+  })))) : null, !fileShareId ? h("details", {
     class: "relative shrink-0",
     name: "files-toolbar-menu"
   }, h("summary", {
@@ -558,6 +607,18 @@ export default function MainFiles({
     itemPluralLabel: "files",
     isTrash: path.value === TRASH_PATH,
     onClickUpload: fileShareId ? undefined : () => onClickUploadFile()
+  }) : view.value === 'grid' ? h(FilesGrid, {
+    items: items,
+    chosenKeys: chosenKeys,
+    isSelectable: !fileShareId,
+    areThumbnailsAvailable: !fileShareId,
+    onToggleChoose: onToggleChoose,
+    onClickRename: fileShareId ? undefined : onClickOpenRename,
+    onClickMove: fileShareId ? undefined : onClickOpenMove,
+    onClickDelete: fileShareId ? undefined : onClickDelete,
+    onClickDownload: !fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
+    onClickCreateShare: !fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined,
+    onClickManageShare: !fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined
   }) : h(FilesList, {
     items: items,
     chosenKeys: chosenKeys,

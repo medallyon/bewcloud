@@ -1,3 +1,4 @@
+import type { FileView } from '/public/ts/utils/files.ts';
 import type { ThemeId } from '/public/ts/utils/theme.ts';
 
 export interface User {
@@ -25,6 +26,7 @@ export interface User {
       sort_by: string;
       sort_order: string;
     };
+    file_view?: FileView;
     theme?: ThemeId;
   };
   created_at: Date;

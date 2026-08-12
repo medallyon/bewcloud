@@ -34,6 +34,11 @@ export function bytesFromHumanFileSize(humanFileSize: string) {
 
 export type SortColumn = 'name' | 'updated_at' | 'size_in_bytes';
 export type SortOrder = 'asc' | 'desc';
+export type FileView = 'list' | 'grid';
+
+export const VALID_SORT_COLUMNS: SortColumn[] = ['name', 'updated_at', 'size_in_bytes'];
+export const VALID_SORT_ORDERS: SortOrder[] = ['asc', 'desc'];
+export const VALID_FILE_VIEWS: FileView[] = ['list', 'grid'];
 
 export interface SortOptions {
   sortBy: SortColumn;
