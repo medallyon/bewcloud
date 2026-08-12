@@ -2,37 +2,19 @@ import { useSignal } from '@preact/signals';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { SortColumn, sortDirectories, sortFiles, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
-import { RequestBody as RenameRequestBody, ResponseBody as RenameResponseBody } from '/pages/api/files/rename.ts';
-import { RequestBody as MoveRequestBody, ResponseBody as MoveResponseBody } from '/pages/api/files/move.ts';
-import { RequestBody as DeleteRequestBody, ResponseBody as DeleteResponseBody } from '/pages/api/files/delete.ts';
 import {
-  RequestBody as CreateDirectoryRequestBody,
-  ResponseBody as CreateDirectoryResponseBody,
-} from '/pages/api/files/create-directory.ts';
-import {
-  RequestBody as RenameDirectoryRequestBody,
-  ResponseBody as RenameDirectoryResponseBody,
-} from '/pages/api/files/rename-directory.ts';
-import {
-  RequestBody as MoveDirectoryRequestBody,
-  ResponseBody as MoveDirectoryResponseBody,
-} from '/pages/api/files/move-directory.ts';
-import {
-  RequestBody as DeleteDirectoryRequestBody,
-  ResponseBody as DeleteDirectoryResponseBody,
-} from '/pages/api/files/delete-directory.ts';
-import {
-  RequestBody as CreateShareRequestBody,
-  ResponseBody as CreateShareResponseBody,
-} from '/pages/api/files/create-share.ts';
-import {
-  RequestBody as UpdateShareRequestBody,
-  ResponseBody as UpdateShareResponseBody,
-} from '/pages/api/files/update-share.ts';
-import {
-  RequestBody as DeleteShareRequestBody,
-  ResponseBody as DeleteShareResponseBody,
-} from '/pages/api/files/delete-share.ts';
+  createDirectory,
+  createFileShare,
+  deleteDirectory,
+  deleteFile,
+  deleteFileShare,
+  moveDirectory,
+  moveFile,
+  renameDirectory,
+  renameFile,
+  updateFileShare,
+} from './fileActions.ts';
+import { useFileUploadDrop } from './useFileUploadDrop.ts';
 import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
 import ListFiles from './ListFiles.tsx';
@@ -94,73 +76,9 @@ export default function MainFiles(
   const createShareModal = useSignal<{ isOpen: boolean; filePath: string; password?: string } | null>(null);
   const manageShareModal = useSignal<{ isOpen: boolean; fileShareId: string } | null>(null);
 
-  // Drag and drop state
-  const isDraggingOver = useSignal<boolean>(false);
-  const dragCounter = useSignal<number>(0);
-
-  // Directory creation progress state
-  const isCreatingDirectories = useSignal<boolean>(false);
-  const currentDirectoryName = useSignal<string>('');
-
-  // File conflict resolution state
-  const fileConflictModal = useSignal<
-    {
-      isOpen: boolean;
-      conflictFile: File | null;
-      existingFileName: string;
-      onReplace: () => void;
-      onSkip: () => void;
-      onReplaceAll: () => void;
-    } | null
-  >(null);
-  const replaceAllMode = useSignal<boolean>(false);
-
-  // Helper function to check if a file already exists
-  function checkFileExists(fileName: string, targetPath: string): boolean {
-    const existingFiles = files.value;
-    return existingFiles.some((file) => file.file_name === fileName && file.parent_path === targetPath);
-  }
-
-  // Helper function to get the target path for a file (considering webkitRelativePath)
-  function getTargetPath(file: File): string {
-    if ((file as any).webkitRelativePath) {
-      const directoryPath = (file as any).webkitRelativePath.replace(file.name, '');
-      return directoryPath ? `${path.value}${directoryPath}`.replace(/\/+$/, '') : path.value;
-    }
-    return path.value;
-  }
-
-  // Resolves a naming conflict for a single file, prompting the user unless already in "replace all" mode. Returns whether the file should be uploaded.
-  function resolveFileConflict(file: File, targetPath: string): Promise<boolean> {
-    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
-      return Promise.resolve(true);
-    }
-
-    return new Promise((resolve) => {
-      fileConflictModal.value = {
-        isOpen: true,
-        conflictFile: file,
-        existingFileName: file.name,
-        onReplace: () => {
-          fileConflictModal.value = null;
-          resolve(true);
-        },
-        onSkip: () => {
-          fileConflictModal.value = null;
-          resolve(false);
-        },
-        onReplaceAll: () => {
-          replaceAllMode.value = true;
-          fileConflictModal.value = null;
-          resolve(true);
-        },
-      };
-    });
-  }
-
   // Uploads run inside a service worker (public/sw.js) so they survive a page refresh; this hook enqueues files and
-  // hydrates isUploading/uploadProgress/uploadError from its broadcasts. Existing-file checking is done ourselves
-  // above (with a replace/skip/replace-all prompt), so the hook's own blanket skip-if-exists check is disabled here.
+  // hydrates isUploading/uploadProgress from its broadcasts. Existing-file checking is done by useFileUploadDrop
+  // below (with a replace/skip/replace-all prompt), so the hook's own blanket skip-if-exists check is disabled here.
   const { isUploading, uploadProgress, enqueueUpload } = useUploadQueue({
     isEnabled: !fileShareId,
     path,
@@ -169,6 +87,24 @@ export default function MainFiles(
     uploadSessionTag,
     uploadKind: 'file',
     checkExistingFiles: false,
+  });
+
+  const {
+    isDraggingOver,
+    isCreatingDirectories,
+    currentDirectoryName,
+    fileConflictModal,
+    uploadFiles,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+  } = useFileUploadDrop({
+    path,
+    files,
+    directories,
+    enqueueUpload,
+    onUploadStart: () => areNewOptionsOpen.value = false,
   });
 
   function onClickSort(column: SortColumn) {
@@ -215,215 +151,9 @@ export default function MainFiles(
 
     fileInput.onchange = async (event) => {
       const chosenFilesList = (event.target as HTMLInputElement)?.files!;
-      const chosenFiles = Array.from(chosenFilesList);
 
-      if (chosenFiles.length === 0) {
-        return;
-      }
-
-      areNewOptionsOpen.value = false;
-      replaceAllMode.value = false; // Reset replace all mode for new upload session
-
-      const itemsToUpload: { file: File; parentPath: string }[] = [];
-
-      for (const chosenFile of chosenFiles) {
-        const targetPath = getTargetPath(chosenFile);
-        const shouldUpload = await resolveFileConflict(chosenFile, targetPath);
-
-        if (shouldUpload) {
-          itemsToUpload.push({ file: chosenFile, parentPath: targetPath });
-        }
-      }
-
-      await enqueueUpload(itemsToUpload);
-
-      replaceAllMode.value = false;
+      await uploadFiles(Array.from(chosenFilesList));
     };
-  }
-
-  // Handle file upload from dropped files
-  async function handleDroppedFiles(droppedFiles: File[]) {
-    if (droppedFiles.length === 0) return;
-
-    areNewOptionsOpen.value = false;
-    replaceAllMode.value = false; // Reset replace all mode for new upload session
-
-    const itemsToUpload: { file: File; parentPath: string }[] = [];
-
-    for (const file of droppedFiles) {
-      const targetPath = getTargetPath(file);
-      const shouldUpload = await resolveFileConflict(file, targetPath);
-
-      if (shouldUpload) {
-        itemsToUpload.push({ file, parentPath: targetPath });
-      }
-    }
-
-    await enqueueUpload(itemsToUpload);
-
-    replaceAllMode.value = false;
-  }
-
-  // Handle directory drops (including empty directories)
-  async function handleDroppedItems(items: DataTransferItemList) {
-    const filesToUpload: File[] = [];
-    const directoriesToCreate: string[] = [];
-
-    // Process all dropped items
-    await processDroppedItems(items, filesToUpload, directoriesToCreate);
-
-    // Create empty directories first
-    for (const dirPath of directoriesToCreate) {
-      await createDirectoryFromPath(dirPath);
-    }
-
-    // Upload files
-    if (filesToUpload.length > 0) {
-      await handleDroppedFiles(filesToUpload);
-    }
-  }
-
-  // Recursively process dropped items to extract files and empty directories
-  async function processDroppedItems(
-    items: DataTransferItemList,
-    filesToUpload: File[],
-    directoriesToCreate: string[],
-  ): Promise<void> {
-    const promises: Promise<void>[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const entry = item.webkitGetAsEntry();
-        if (entry) {
-          promises.push(processEntry(entry, '', filesToUpload, directoriesToCreate));
-        }
-      }
-    }
-
-    await Promise.all(promises);
-  }
-
-  // Process a single file system entry (file or directory)
-  function processEntry(
-    entry: FileSystemEntry,
-    currentPath: string,
-    filesToUpload: File[],
-    directoriesToCreate: string[],
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (entry.isFile) {
-        const fileEntry = entry as FileSystemFileEntry;
-        fileEntry.file((file) => {
-          // Add webkitRelativePath to maintain directory structure
-          Object.defineProperty(file, 'webkitRelativePath', {
-            value: currentPath ? `${currentPath}/${file.name}` : file.name,
-            writable: false,
-          });
-          filesToUpload.push(file);
-          resolve();
-        }, reject);
-      } else if (entry.isDirectory) {
-        const dirEntry = entry as FileSystemDirectoryEntry;
-        const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
-
-        const reader = dirEntry.createReader();
-        reader.readEntries(async (entries) => {
-          try {
-            if (entries.length === 0) {
-              // Empty directory - add to directories to create
-              directoriesToCreate.push(dirPath);
-            } else {
-              // Process all entries in the directory
-              const promises = entries.map((childEntry) =>
-                processEntry(childEntry, dirPath, filesToUpload, directoriesToCreate)
-              );
-              await Promise.all(promises);
-            }
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        }, reject);
-      } else {
-        resolve();
-      }
-    });
-  }
-
-  // Create a directory from a relative path
-  async function createDirectoryFromPath(dirPath: string) {
-    try {
-      isCreatingDirectories.value = true;
-      currentDirectoryName.value = dirPath;
-
-      const requestBody = {
-        parentPath: path.value,
-        name: dirPath, // The API should handle nested path creation
-      };
-
-      const response = await fetch(`/api/files/create-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create directory. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json();
-      if (result.success) {
-        directories.value = [...result.newDirectories];
-      }
-    } catch (error) {
-      console.error(`Failed to create directory ${dirPath}:`, error);
-    } finally {
-      isCreatingDirectories.value = false;
-      currentDirectoryName.value = '';
-    }
-  }
-
-  // Drag and drop event handlers
-  function handleDragEnter(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    dragCounter.value++;
-    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      isDraggingOver.value = true;
-    }
-  }
-
-  function handleDragLeave(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    dragCounter.value--;
-    if (dragCounter.value === 0) {
-      isDraggingOver.value = false;
-    }
-  }
-
-  function handleDragOver(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  function handleDrop(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    isDraggingOver.value = false;
-    dragCounter.value = 0;
-
-    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      // Use items for better directory support
-      handleDroppedItems(e.dataTransfer.items);
-    } else if (e.dataTransfer?.files) {
-      // Fallback to files for compatibility
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      handleDroppedFiles(droppedFiles);
-    }
   }
 
   function onClickCreateDirectory() {
@@ -448,24 +178,7 @@ export default function MainFiles(
     isAdding.value = true;
 
     try {
-      const requestBody: CreateDirectoryRequestBody = {
-        parentPath: path.value,
-        name: newDirectoryName,
-      };
-      const response = await fetch(`/api/files/create-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create directory. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as CreateDirectoryResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to create directory!');
-      }
+      const result = await createDirectory(path.value, newDirectoryName);
 
       directories.value = [...result.newDirectories];
 
@@ -521,25 +234,11 @@ export default function MainFiles(
     isUpdating.value = true;
 
     try {
-      const requestBody: RenameDirectoryRequestBody = {
-        parentPath: renameDirectoryOrFileModal.value.parentPath,
-        oldName: renameDirectoryOrFileModal.value.name,
+      const result = await renameDirectory(
+        renameDirectoryOrFileModal.value.parentPath,
+        renameDirectoryOrFileModal.value.name,
         newName,
-      };
-      const response = await fetch(`/api/files/rename-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to rename directory. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as RenameDirectoryResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to rename directory!');
-      }
+      );
 
       directories.value = [...result.newDirectories];
     } catch (error) {
@@ -560,25 +259,11 @@ export default function MainFiles(
     isUpdating.value = true;
 
     try {
-      const requestBody: RenameRequestBody = {
-        parentPath: renameDirectoryOrFileModal.value.parentPath,
-        oldName: renameDirectoryOrFileModal.value.name,
+      const result = await renameFile(
+        renameDirectoryOrFileModal.value.parentPath,
+        renameDirectoryOrFileModal.value.name,
         newName,
-      };
-      const response = await fetch(`/api/files/rename`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to rename file. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as RenameResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to rename file!');
-      }
+      );
 
       files.value = [...result.newFiles];
     } catch (error) {
@@ -619,25 +304,11 @@ export default function MainFiles(
     isUpdating.value = true;
 
     try {
-      const requestBody: MoveDirectoryRequestBody = {
-        oldParentPath: moveDirectoryOrFileModal.value.path,
-        newParentPath: newPath,
-        name: moveDirectoryOrFileModal.value.name,
-      };
-      const response = await fetch(`/api/files/move-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to move directory. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as MoveDirectoryResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to move directory!');
-      }
+      const result = await moveDirectory(
+        moveDirectoryOrFileModal.value.path,
+        newPath,
+        moveDirectoryOrFileModal.value.name,
+      );
 
       directories.value = [...result.newDirectories];
     } catch (error) {
@@ -656,25 +327,7 @@ export default function MainFiles(
     isUpdating.value = true;
 
     try {
-      const requestBody: MoveRequestBody = {
-        oldParentPath: moveDirectoryOrFileModal.value.path,
-        newParentPath: newPath,
-        name: moveDirectoryOrFileModal.value.name,
-      };
-      const response = await fetch(`/api/files/move`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to move file. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as MoveResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to move file!');
-      }
+      const result = await moveFile(moveDirectoryOrFileModal.value.path, newPath, moveDirectoryOrFileModal.value.name);
 
       files.value = [...result.newFiles];
     } catch (error) {
@@ -709,24 +362,7 @@ export default function MainFiles(
       isDeleting.value = true;
 
       try {
-        const requestBody: DeleteDirectoryRequestBody = {
-          parentPath,
-          name,
-        };
-        const response = await fetch(`/api/files/delete-directory`, {
-          method: 'POST',
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to delete directory. ${response.statusText} ${await response.text()}`);
-        }
-
-        const result = await response.json() as DeleteDirectoryResponseBody;
-
-        if (!result.success) {
-          throw new Error('Failed to delete directory!');
-        }
+        const result = await deleteDirectory(parentPath, name);
 
         directories.value = [...result.newDirectories];
 
@@ -753,24 +389,7 @@ export default function MainFiles(
       isDeleting.value = true;
 
       try {
-        const requestBody: DeleteRequestBody = {
-          parentPath,
-          name,
-        };
-        const response = await fetch(`/api/files/delete`, {
-          method: 'POST',
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to delete file. ${response.statusText} ${await response.text()}`);
-        }
-
-        const result = await response.json() as DeleteResponseBody;
-
-        if (!result.success) {
-          throw new Error('Failed to delete file!');
-        }
+        const result = await deleteFile(parentPath, name);
 
         files.value = [...result.newFiles];
       } catch (error) {
@@ -883,25 +502,7 @@ export default function MainFiles(
     isAdding.value = true;
 
     try {
-      const requestBody: CreateShareRequestBody = {
-        pathInView: path.value,
-        filePath,
-        password,
-      };
-      const response = await fetch(`/api/files/create-share`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create share. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as CreateShareResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to create share!');
-      }
+      const result = await createFileShare(path.value, filePath, password);
 
       directories.value = [...result.newDirectories];
       files.value = [...result.newFiles];
@@ -939,25 +540,7 @@ export default function MainFiles(
     isUpdating.value = true;
 
     try {
-      const requestBody: UpdateShareRequestBody = {
-        pathInView: path.value,
-        fileShareId,
-        password,
-      };
-      const response = await fetch(`/api/files/update-share`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update share. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as UpdateShareResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to update share!');
-      }
+      const result = await updateFileShare(path.value, fileShareId, password);
 
       directories.value = [...result.newDirectories];
       files.value = [...result.newFiles];
@@ -982,24 +565,7 @@ export default function MainFiles(
     isDeleting.value = true;
 
     try {
-      const requestBody: DeleteShareRequestBody = {
-        pathInView: path.value,
-        fileShareId,
-      };
-      const response = await fetch(`/api/files/delete-share`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to delete file share. ${response.statusText} ${await response.text()}`);
-      }
-
-      const result = await response.json() as DeleteShareResponseBody;
-
-      if (!result.success) {
-        throw new Error('Failed to delete file share!');
-      }
+      const result = await deleteFileShare(path.value, fileShareId);
 
       directories.value = [...result.newDirectories];
       files.value = [...result.newFiles];
