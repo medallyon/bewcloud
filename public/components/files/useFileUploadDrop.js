@@ -1,5 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { createDirectory } from "./fileActions.js";
+import { INTERNAL_DRAG_TYPE } from "./useInternalDragAndDrop.js";
 export function useFileUploadDrop({
   path,
   files,
@@ -140,7 +141,13 @@ export function useFileUploadDrop({
       currentDirectoryName.value = '';
     }
   }
+  function isInternalItemDrag(event) {
+    return Boolean(event.dataTransfer?.types.includes(INTERNAL_DRAG_TYPE));
+  }
   function handleDragEnter(event) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     dragCounter.value++;
@@ -161,6 +168,9 @@ export function useFileUploadDrop({
     event.stopPropagation();
   }
   function handleDrop(event) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     isDraggingOver.value = false;

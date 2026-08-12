@@ -9,12 +9,15 @@ interface MoveDirectoryOrFileModalProps {
   initialPath: string;
   isDirectory: boolean;
   name: string;
+  /** Full paths (directories with a trailing slash) that can't be moved into, because they're the ones being moved. */
+  directoryPathsToExclude?: string[];
   onClickSave: (newPath: string) => Promise<void>;
   onClose: () => void;
 }
 
 export default function MoveDirectoryOrFileModal(
-  { isOpen, initialPath, isDirectory, name, onClickSave, onClose }: MoveDirectoryOrFileModalProps,
+  { isOpen, initialPath, isDirectory, name, directoryPathsToExclude, onClickSave, onClose }:
+    MoveDirectoryOrFileModalProps,
 ) {
   const newPath = useSignal<string>(initialPath);
   const isLoading = useSignal<boolean>(false);
@@ -53,7 +56,10 @@ export default function MoveDirectoryOrFileModal(
         throw new Error('Failed to get directories!');
       }
 
-      directories.value = [...result.directories];
+      // Excluding several directories is simpler here than teaching the endpoint about a list
+      directories.value = result.directories.filter((directory) =>
+        !directoryPathsToExclude?.includes(`${directory.parent_path}${directory.directory_name}/`)
+      );
 
       isLoading.value = false;
     } catch (error) {

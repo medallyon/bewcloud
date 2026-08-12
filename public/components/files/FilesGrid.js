@@ -15,6 +15,7 @@ export default function FilesGrid({
   isSelectable,
   areThumbnailsAvailable,
   onToggleChoose,
+  dragAndDrop,
   ...actions
 }) {
   const chosenKeysSet = new Set(chosenKeys);
@@ -22,10 +23,10 @@ export default function FilesGrid({
     class: "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6"
   }, items.map(item => {
     const extension = getExtension(item.name);
-    return h("article", {
+    return h("article", _extends({
       key: item.key,
-      class: `relative flex flex-col overflow-hidden rounded-xl border bg-slate-700 hover:bg-slate-600 ${chosenKeysSet.has(item.key) ? 'border-accent' : 'border-slate-600'}`
-    }, h("a", {
+      class: `relative flex flex-col overflow-hidden rounded-xl border bg-slate-700 hover:bg-slate-600 ${dragAndDrop?.dropTargetPath === item.fullPath ? 'border-accent outline outline-2 -outline-offset-2 outline-accent' : chosenKeysSet.has(item.key) ? 'border-accent' : 'border-slate-600'}`
+    }, dragAndDrop?.getItemDragProps(item), item.isDirectory && dragAndDrop ? dragAndDrop.getDropTargetProps(item.fullPath) : {}), h("a", {
       href: item.href,
       class: "block",
       target: item.isDirectory ? undefined : '_blank',

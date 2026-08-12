@@ -1,4 +1,5 @@
 import { FileView, SortColumn, SortOrder } from '/public/ts/utils/files.ts';
+import { FilesDragAndDrop } from './useInternalDragAndDrop.ts';
 
 interface FilesBreadcrumbProps {
   path: string;
@@ -8,6 +9,7 @@ interface FilesBreadcrumbProps {
   sortBy?: SortColumn;
   sortOrder?: SortOrder;
   view?: FileView;
+  dragAndDrop?: FilesDragAndDrop;
 }
 
 const crumbClass = 'inline-flex min-h-11 items-center font-normal text-white hover:underline';
@@ -20,6 +22,7 @@ export default function FilesBreadcrumb({
   sortBy = 'name',
   sortOrder = 'asc',
   view,
+  dragAndDrop,
 }: FilesBreadcrumbProps) {
   let routePath = fileShareId ? `file-share/${fileShareId}` : 'files';
   let rootPath = '/';
@@ -46,7 +49,10 @@ export default function FilesBreadcrumb({
   return (
     <nav aria-label='Breadcrumb' class='min-w-0'>
       <ol class='flex items-center gap-1 overflow-x-auto whitespace-nowrap text-base font-semibold'>
-        <li>
+        <li
+          class={dragAndDrop?.dropTargetPath === rootPath ? 'rounded-lg outline outline-2 outline-accent' : ''}
+          {...(dragAndDrop && path !== rootPath ? dragAndDrop.getDropTargetProps(rootPath) : {})}
+        >
           {path === rootPath
             ? <span class='inline-flex min-h-11 items-center text-white'>All {itemPluralLabel}</span>
             : <a href={rootHref} class={crumbClass}>All {itemPluralLabel}</a>}
@@ -62,7 +68,13 @@ export default function FilesBreadcrumb({
           const pathForPart = `/${pathParts.slice(0, index + 1).join('/')}/`;
 
           return (
-            <li key={pathForPart} class='flex items-center gap-1'>
+            <li
+              key={pathForPart}
+              class={`flex items-center gap-1 ${
+                dragAndDrop?.dropTargetPath === pathForPart ? 'rounded-lg outline outline-2 outline-accent' : ''
+              }`}
+              {...(dragAndDrop && !isLastPart ? dragAndDrop.getDropTargetProps(pathForPart) : {})}
+            >
               <span class='text-xs text-slate-400'>/</span>
               {isLastPart ? <span class='inline-flex min-h-11 items-center text-white'>{part}</span> : (
                 <a

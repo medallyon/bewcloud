@@ -2,6 +2,7 @@ import { humanFileSize } from '/public/ts/utils/files.ts';
 import { PHOTO_IMAGE_EXTENSIONS } from '/public/ts/utils/photos.ts';
 import { FileItem, FileItemActions } from './fileItemModel.ts';
 import FilesItemMenu from './FilesItemMenu.tsx';
+import { FilesDragAndDrop } from './useInternalDragAndDrop.ts';
 
 interface FilesGridProps extends FileItemActions {
   items: FileItem[];
@@ -10,6 +11,7 @@ interface FilesGridProps extends FileItemActions {
   /** The thumbnail endpoint is user-only, so a public share falls back to glyphs. */
   areThumbnailsAvailable: boolean;
   onToggleChoose?: (item: FileItem) => void;
+  dragAndDrop?: FilesDragAndDrop;
 }
 
 function getExtension(name: string) {
@@ -29,6 +31,7 @@ export default function FilesGrid({
   isSelectable,
   areThumbnailsAvailable,
   onToggleChoose,
+  dragAndDrop,
   ...actions
 }: FilesGridProps) {
   const chosenKeysSet = new Set(chosenKeys);
@@ -42,8 +45,14 @@ export default function FilesGrid({
           <article
             key={item.key}
             class={`relative flex flex-col overflow-hidden rounded-xl border bg-slate-700 hover:bg-slate-600 ${
-              chosenKeysSet.has(item.key) ? 'border-accent' : 'border-slate-600'
+              dragAndDrop?.dropTargetPath === item.fullPath
+                ? 'border-accent outline outline-2 -outline-offset-2 outline-accent'
+                : chosenKeysSet.has(item.key)
+                ? 'border-accent'
+                : 'border-slate-600'
             }`}
+            {...dragAndDrop?.getItemDragProps(item)}
+            {...(item.isDirectory && dragAndDrop ? dragAndDrop.getDropTargetProps(item.fullPath) : {})}
           >
             <a
               href={item.href}

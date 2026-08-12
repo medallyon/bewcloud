@@ -1,3 +1,4 @@
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 const crumbClass = 'inline-flex min-h-11 items-center font-normal text-white hover:underline';
 export default function FilesBreadcrumb({
   path,
@@ -6,7 +7,8 @@ export default function FilesBreadcrumb({
   fileShareId,
   sortBy = 'name',
   sortOrder = 'asc',
-  view
+  view,
+  dragAndDrop
 }) {
   let routePath = fileShareId ? `file-share/${fileShareId}` : 'files';
   let rootPath = '/';
@@ -34,7 +36,9 @@ export default function FilesBreadcrumb({
     class: "min-w-0"
   }, h("ol", {
     class: "flex items-center gap-1 overflow-x-auto whitespace-nowrap text-base font-semibold"
-  }, h("li", null, path === rootPath ? h("span", {
+  }, h("li", _extends({
+    class: dragAndDrop?.dropTargetPath === rootPath ? 'rounded-lg outline outline-2 outline-accent' : ''
+  }, dragAndDrop && path !== rootPath ? dragAndDrop.getDropTargetProps(rootPath) : {}), path === rootPath ? h("span", {
     class: "inline-flex min-h-11 items-center text-white"
   }, "All ", itemPluralLabel) : h("a", {
     href: rootHref,
@@ -45,10 +49,10 @@ export default function FilesBreadcrumb({
     }
     const isLastPart = index === pathParts.length - 1;
     const pathForPart = `/${pathParts.slice(0, index + 1).join('/')}/`;
-    return h("li", {
+    return h("li", _extends({
       key: pathForPart,
-      class: "flex items-center gap-1"
-    }, h("span", {
+      class: `flex items-center gap-1 ${dragAndDrop?.dropTargetPath === pathForPart ? 'rounded-lg outline outline-2 outline-accent' : ''}`
+    }, dragAndDrop && !isLastPart ? dragAndDrop.getDropTargetProps(pathForPart) : {}), h("span", {
       class: "text-xs text-slate-400"
     }, "/"), isLastPart ? h("span", {
       class: "inline-flex min-h-11 items-center text-white"

@@ -2,6 +2,7 @@ import { Signal, useSignal } from '@preact/signals';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { createDirectory } from './fileActions.ts';
+import { INTERNAL_DRAG_TYPE } from './useInternalDragAndDrop.ts';
 
 export interface FileConflictModal {
   isOpen: boolean;
@@ -211,8 +212,18 @@ export function useFileUploadDrop(
     }
   }
 
+  // An internal item drag also reports dataTransfer.items, so without this guard dragging a file onto a folder would
+  // raise the full-screen upload overlay and then drop into the upload path with zero entries
+  function isInternalItemDrag(event: DragEvent) {
+    return Boolean(event.dataTransfer?.types.includes(INTERNAL_DRAG_TYPE));
+  }
+
   // Drag and drop event handlers
   function handleDragEnter(event: DragEvent) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -238,6 +249,10 @@ export function useFileUploadDrop(
   }
 
   function handleDrop(event: DragEvent) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 

@@ -20,6 +20,7 @@ export default function FilesList({
   onClickSort,
   onToggleChoose,
   onToggleChooseAll,
+  dragAndDrop,
   ...actions
 }) {
   const chosenKeysSet = new Set(chosenKeys);
@@ -70,10 +71,10 @@ export default function FilesList({
     class: "w-14 px-2 py-3"
   }))), h("tbody", {
     class: "divide-y divide-slate-600"
-  }, items.map(item => h("tr", {
+  }, items.map(item => h("tr", _extends({
     key: item.key,
-    class: "bg-slate-700 hover:bg-slate-600"
-  }, isSelectable ? h("td", {
+    class: `bg-slate-700 hover:bg-slate-600 ${dragAndDrop?.dropTargetPath === item.fullPath ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`
+  }, dragAndDrop?.getItemDragProps(item), item.isDirectory && dragAndDrop ? dragAndDrop.getDropTargetProps(item.fullPath) : {}), isSelectable ? h("td", {
     class: "pl-4 pr-2 py-3"
   }, item.isTrash ? null : h("input", {
     class: "h-4 w-4 cursor-pointer rounded border-slate-300 bg-slate-100 text-accent",

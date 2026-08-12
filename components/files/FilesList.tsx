@@ -1,6 +1,7 @@
 import { humanFileSize, SortColumn, SortOrder } from '/public/ts/utils/files.ts';
 import { FileItem, FileItemActions } from './fileItemModel.ts';
 import FilesItemMenu from './FilesItemMenu.tsx';
+import { FilesDragAndDrop } from './useInternalDragAndDrop.ts';
 
 interface FilesListProps extends FileItemActions {
   items: FileItem[];
@@ -13,6 +14,7 @@ interface FilesListProps extends FileItemActions {
   onClickSort?: (column: SortColumn) => void;
   onToggleChoose?: (item: FileItem) => void;
   onToggleChooseAll?: (shouldChoose: boolean) => void;
+  dragAndDrop?: FilesDragAndDrop;
 }
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
@@ -35,6 +37,7 @@ export default function FilesList({
   onClickSort,
   onToggleChoose,
   onToggleChooseAll,
+  dragAndDrop,
   ...actions
 }: FilesListProps) {
   const chosenKeysSet = new Set(chosenKeys);
@@ -101,7 +104,14 @@ export default function FilesList({
       </thead>
       <tbody class='divide-y divide-slate-600'>
         {items.map((item) => (
-          <tr key={item.key} class='bg-slate-700 hover:bg-slate-600'>
+          <tr
+            key={item.key}
+            class={`bg-slate-700 hover:bg-slate-600 ${
+              dragAndDrop?.dropTargetPath === item.fullPath ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
+            }`}
+            {...dragAndDrop?.getItemDragProps(item)}
+            {...(item.isDirectory && dragAndDrop ? dragAndDrop.getDropTargetProps(item.fullPath) : {})}
+          >
             {isSelectable
               ? (
                 <td class='pl-4 pr-2 py-3'>

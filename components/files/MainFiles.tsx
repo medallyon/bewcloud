@@ -23,6 +23,7 @@ import SearchFiles from './SearchFiles.tsx';
 import FilesList from './FilesList.tsx';
 import FilesGrid from './FilesGrid.tsx';
 import FilesSidebar from './FilesSidebar.tsx';
+import { useInternalDragAndDrop } from './useInternalDragAndDrop.ts';
 import FilesBulkBar from './FilesBulkBar.tsx';
 import FilesEmptyState from './FilesEmptyState.tsx';
 import ConfirmModal, { ConfirmModalState } from './ConfirmModal.tsx';
@@ -92,7 +93,7 @@ export default function MainFiles(
     { isOpen: boolean; isDirectory: boolean; parentPath: string; name: string } | null
   >(null);
   const moveDirectoryOrFileModal = useSignal<
-    { isOpen: boolean; isDirectory: boolean; path: string; name: string } | null
+    { isOpen: boolean; isDirectory: boolean; path: string; name: string; items?: FileItem[] } | null
   >(null);
   const confirmModal = useSignal<ConfirmModalState | null>(null);
   const createShareModal = useSignal<{ isOpen: boolean; filePath: string; password?: string } | null>(null);
@@ -142,6 +143,23 @@ export default function MainFiles(
   const choosableItemsCount = items.filter((item) => !item.isTrash).length;
   const areAllItemsChosen = chosenKeys.length > 0 && chosenKeys.length === choosableItemsCount;
   const areSomeItemsChosen = chosenKeys.length > 0 && !areAllItemsChosen;
+
+  const dragAndDrop = useInternalDragAndDrop({
+    path,
+    files,
+    directories,
+    items,
+    chosenKeys,
+    clearSelection: () => onToggleChooseAll(false),
+    isEnabled: !fileShareId,
+  });
+
+  // Read here rather than inside the children, so a change of drop target re-renders the rows that highlight
+  const filesDragAndDrop = {
+    dropTargetPath: dragAndDrop.dropTargetPath.value,
+    getItemDragProps: dragAndDrop.getItemDragProps,
+    getDropTargetProps: dragAndDrop.getDropTargetProps,
+  };
 
   // <details> menus close themselves, but a modal or an open menu should also give way to Escape
   useEffect(() => {
@@ -348,6 +366,35 @@ export default function MainFiles(
 
   function onClickCloseMove() {
     moveDirectoryOrFileModal.value = null;
+  }
+
+  // Moving a multi-selection reuses the same modal, then the same sequential move helper the drag path uses
+  function onClickBulkMove() {
+    const chosenItems = items.filter((item) => chosenKeys.includes(item.key));
+
+    if (chosenItems.length === 0) {
+      return;
+    }
+
+    moveDirectoryOrFileModal.value = {
+      isOpen: true,
+      isDirectory: false,
+      path: path.value,
+      name: `${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'}`,
+      items: chosenItems,
+    };
+  }
+
+  async function onClickSaveMove(newPath: string) {
+    const chosenItems = moveDirectoryOrFileModal.value?.items;
+
+    if (!chosenItems) {
+      return;
+    }
+
+    moveDirectoryOrFileModal.value = null;
+
+    await dragAndDrop.moveItems(chosenItems, newPath);
   }
 
   async function onClickSaveMoveDirectory(newPath: string) {
@@ -696,6 +743,7 @@ export default function MainFiles(
                 sortBy={sortBy.value}
                 sortOrder={sortOrder.value}
                 view={view.value}
+                dragAndDrop={filesDragAndDrop}
               />
             </aside>
           )
@@ -729,6 +777,7 @@ export default function MainFiles(
                 sortBy={sortBy.value}
                 sortOrder={sortOrder.value}
                 view={fileShareId ? undefined : view.value}
+                dragAndDrop={fileShareId ? undefined : filesDragAndDrop}
               />
             </section>
 
@@ -845,6 +894,7 @@ export default function MainFiles(
               ? (
                 <FilesBulkBar
                   chosenItemsCount={chosenKeys.length}
+                  onClickMove={onClickBulkMove}
                   onClickDelete={onClickBulkDelete}
                   onClickClear={() => onToggleChooseAll(false)}
                 />
@@ -867,6 +917,7 @@ export default function MainFiles(
                   isSelectable={!fileShareId}
                   areThumbnailsAvailable={!fileShareId}
                   onToggleChoose={onToggleChoose}
+                  dragAndDrop={fileShareId ? undefined : filesDragAndDrop}
                   onClickRename={fileShareId ? undefined : onClickOpenRename}
                   onClickMove={fileShareId ? undefined : onClickOpenMove}
                   onClickDelete={fileShareId ? undefined : onClickDelete}
@@ -887,6 +938,7 @@ export default function MainFiles(
                   onClickSort={onClickSort}
                   onToggleChoose={onToggleChoose}
                   onToggleChooseAll={onToggleChooseAll}
+                  dragAndDrop={fileShareId ? undefined : filesDragAndDrop}
                   onClickRename={fileShareId ? undefined : onClickOpenRename}
                   onClickMove={fileShareId ? undefined : onClickOpenMove}
                   onClickDelete={fileShareId ? undefined : onClickDelete}
@@ -985,6 +1037,7 @@ export default function MainFiles(
               sortBy={sortBy.value}
               sortOrder={sortOrder.value}
               view={view.value}
+              dragAndDrop={filesDragAndDrop}
             />
           </dialog>
         )
@@ -1061,7 +1114,14 @@ export default function MainFiles(
             isDirectory={moveDirectoryOrFileModal.value?.isDirectory || false}
             initialPath={moveDirectoryOrFileModal.value?.path || ''}
             name={moveDirectoryOrFileModal.value?.name || ''}
-            onClickSave={moveDirectoryOrFileModal.value?.isDirectory ? onClickSaveMoveDirectory : onClickSaveMoveFile}
+            directoryPathsToExclude={moveDirectoryOrFileModal.value?.items
+              ?.filter((item) => item.isDirectory)
+              .map((item) => item.fullPath)}
+            onClickSave={moveDirectoryOrFileModal.value?.items
+              ? onClickSaveMove
+              : moveDirectoryOrFileModal.value?.isDirectory
+              ? onClickSaveMoveDirectory
+              : onClickSaveMoveFile}
             onClose={onClickCloseMove}
           />
         )

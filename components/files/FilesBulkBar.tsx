@@ -1,10 +1,13 @@
 interface FilesBulkBarProps {
   chosenItemsCount: number;
+  onClickMove: () => void;
   onClickDelete: () => void;
   onClickClear: () => void;
 }
 
-export default function FilesBulkBar({ chosenItemsCount, onClickDelete, onClickClear }: FilesBulkBarProps) {
+export default function FilesBulkBar(
+  { chosenItemsCount, onClickMove, onClickDelete, onClickClear }: FilesBulkBarProps,
+) {
   if (chosenItemsCount === 0) {
     return null;
   }
@@ -14,6 +17,15 @@ export default function FilesBulkBar({ chosenItemsCount, onClickDelete, onClickC
       <span class='flex-1 text-sm text-slate-100'>
         {chosenItemsCount} selected
       </span>
+
+      {/* Selection-first moving is the primary path on every device; dragging is a desktop accelerator on top of it */}
+      <button
+        class='min-h-11 rounded-lg px-3 text-sm font-semibold text-white hover:bg-slate-700'
+        type='button'
+        onClick={onClickMove}
+      >
+        Move
+      </button>
 
       <button
         class='min-h-11 rounded-lg px-3 text-sm font-semibold text-red-400 hover:bg-slate-700'

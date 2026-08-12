@@ -1,5 +1,6 @@
 export default function FilesBulkBar({
   chosenItemsCount,
+  onClickMove,
   onClickDelete,
   onClickClear
 }) {
@@ -11,6 +12,10 @@ export default function FilesBulkBar({
   }, h("span", {
     class: "flex-1 text-sm text-slate-100"
   }, chosenItemsCount, " selected"), h("button", {
+    class: "min-h-11 rounded-lg px-3 text-sm font-semibold text-white hover:bg-slate-700",
+    type: "button",
+    onClick: onClickMove
+  }, "Move"), h("button", {
     class: "min-h-11 rounded-lg px-3 text-sm font-semibold text-red-400 hover:bg-slate-700",
     type: "button",
     onClick: onClickDelete

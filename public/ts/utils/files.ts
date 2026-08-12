@@ -133,3 +133,21 @@ export function sortFiles(files: DirectoryFile[], options: SortOptions): Directo
 
   return sorted;
 }
+
+export interface MovableItem {
+  /** Directories carry a trailing slash, files don't. */
+  fullPath: string;
+  isDirectory: boolean;
+}
+
+// Whether a set of items may be dropped into a directory: the same parent is a no-op, and a directory can neither be
+// dropped into itself nor into anything below it. Dropping into /.Trash/ is just a move, so it stays allowed.
+export function isValidMoveTarget(items: MovableItem[], sourcePath: string, targetPath: string): boolean {
+  if (items.length === 0 || targetPath === sourcePath) {
+    return false;
+  }
+
+  return !items.some((item) =>
+    item.isDirectory && (targetPath === item.fullPath || targetPath.startsWith(item.fullPath))
+  );
+}

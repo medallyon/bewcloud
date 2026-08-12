@@ -9,6 +9,7 @@ import SearchFiles from "./SearchFiles.js";
 import FilesList from "./FilesList.js";
 import FilesGrid from "./FilesGrid.js";
 import FilesSidebar from "./FilesSidebar.js";
+import { useInternalDragAndDrop } from "./useInternalDragAndDrop.js";
 import FilesBulkBar from "./FilesBulkBar.js";
 import FilesEmptyState from "./FilesEmptyState.js";
 import ConfirmModal from "./ConfirmModal.js";
@@ -108,6 +109,20 @@ export default function MainFiles({
   const choosableItemsCount = items.filter(item => !item.isTrash).length;
   const areAllItemsChosen = chosenKeys.length > 0 && chosenKeys.length === choosableItemsCount;
   const areSomeItemsChosen = chosenKeys.length > 0 && !areAllItemsChosen;
+  const dragAndDrop = useInternalDragAndDrop({
+    path,
+    files,
+    directories,
+    items,
+    chosenKeys,
+    clearSelection: () => onToggleChooseAll(false),
+    isEnabled: !fileShareId
+  });
+  const filesDragAndDrop = {
+    dropTargetPath: dragAndDrop.dropTargetPath.value,
+    getItemDragProps: dragAndDrop.getItemDragProps,
+    getDropTargetProps: dragAndDrop.getDropTargetProps
+  };
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key !== 'Escape') {
@@ -265,6 +280,27 @@ export default function MainFiles({
   }
   function onClickCloseMove() {
     moveDirectoryOrFileModal.value = null;
+  }
+  function onClickBulkMove() {
+    const chosenItems = items.filter(item => chosenKeys.includes(item.key));
+    if (chosenItems.length === 0) {
+      return;
+    }
+    moveDirectoryOrFileModal.value = {
+      isOpen: true,
+      isDirectory: false,
+      path: path.value,
+      name: `${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'}`,
+      items: chosenItems
+    };
+  }
+  async function onClickSaveMove(newPath) {
+    const chosenItems = moveDirectoryOrFileModal.value?.items;
+    if (!chosenItems) {
+      return;
+    }
+    moveDirectoryOrFileModal.value = null;
+    await dragAndDrop.moveItems(chosenItems, newPath);
   }
   async function onClickSaveMoveDirectory(newPath) {
     if (isUpdating.value || !moveDirectoryOrFileModal.value?.isOpen || !moveDirectoryOrFileModal.value?.isDirectory) {
@@ -536,7 +572,8 @@ export default function MainFiles({
     directories: directories.value,
     sortBy: sortBy.value,
     sortOrder: sortOrder.value,
-    view: view.value
+    view: view.value,
+    dragAndDrop: filesDragAndDrop
   })) : null, h("div", {
     class: "min-w-0 flex-1"
   }, h("section", {
@@ -559,7 +596,8 @@ export default function MainFiles({
     fileShareId: fileShareId,
     sortBy: sortBy.value,
     sortOrder: sortOrder.value,
-    view: fileShareId ? undefined : view.value
+    view: fileShareId ? undefined : view.value,
+    dragAndDrop: fileShareId ? undefined : filesDragAndDrop
   })), h("section", {
     class: "order-3 flex w-full items-center gap-2 md:order-2 md:w-auto"
   }, !fileShareId ? h(SearchFiles, null) : null, h("details", {
@@ -626,6 +664,7 @@ export default function MainFiles({
     class: "my-2"
   }, !fileShareId ? h(FilesBulkBar, {
     chosenItemsCount: chosenKeys.length,
+    onClickMove: onClickBulkMove,
     onClickDelete: onClickBulkDelete,
     onClickClear: () => onToggleChooseAll(false)
   }) : null, items.length === 0 ? h(FilesEmptyState, {
@@ -638,6 +677,7 @@ export default function MainFiles({
     isSelectable: !fileShareId,
     areThumbnailsAvailable: !fileShareId,
     onToggleChoose: onToggleChoose,
+    dragAndDrop: fileShareId ? undefined : filesDragAndDrop,
     onClickRename: fileShareId ? undefined : onClickOpenRename,
     onClickMove: fileShareId ? undefined : onClickOpenMove,
     onClickDelete: fileShareId ? undefined : onClickDelete,
@@ -655,6 +695,7 @@ export default function MainFiles({
     onClickSort: onClickSort,
     onToggleChoose: onToggleChoose,
     onToggleChooseAll: onToggleChooseAll,
+    dragAndDrop: fileShareId ? undefined : filesDragAndDrop,
     onClickRename: fileShareId ? undefined : onClickOpenRename,
     onClickMove: fileShareId ? undefined : onClickOpenMove,
     onClickDelete: fileShareId ? undefined : onClickDelete,
@@ -716,7 +757,8 @@ export default function MainFiles({
     directories: directories.value,
     sortBy: sortBy.value,
     sortOrder: sortOrder.value,
-    view: view.value
+    view: view.value,
+    dragAndDrop: filesDragAndDrop
   })) : null, h(ConfirmModal, {
     state: confirmModal.value,
     onClose: () => confirmModal.value = null
@@ -759,7 +801,8 @@ export default function MainFiles({
     isDirectory: moveDirectoryOrFileModal.value?.isDirectory || false,
     initialPath: moveDirectoryOrFileModal.value?.path || '',
     name: moveDirectoryOrFileModal.value?.name || '',
-    onClickSave: moveDirectoryOrFileModal.value?.isDirectory ? onClickSaveMoveDirectory : onClickSaveMoveFile,
+    directoryPathsToExclude: moveDirectoryOrFileModal.value?.items?.filter(item => item.isDirectory).map(item => item.fullPath),
+    onClickSave: moveDirectoryOrFileModal.value?.items ? onClickSaveMove : moveDirectoryOrFileModal.value?.isDirectory ? onClickSaveMoveDirectory : onClickSaveMoveFile,
     onClose: onClickCloseMove
   }) : null, !fileShareId && isFileSharingAllowed ? h(CreateShareModal, {
     isOpen: createShareModal.value?.isOpen || false,

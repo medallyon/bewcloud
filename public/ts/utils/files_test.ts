@@ -1,6 +1,6 @@
 import { assertEquals } from '@std/assert';
 
-import { bytesFromHumanFileSize, humanFileSize } from './files.ts';
+import { bytesFromHumanFileSize, humanFileSize, isValidMoveTarget, MovableItem, TRASH_PATH } from './files.ts';
 
 Deno.test('that humanFileSize works', () => {
   const tests: { input: number; expected: string }[] = [
@@ -91,5 +91,56 @@ Deno.test('that bytesFromHumanFileSize works', () => {
   for (const test of tests) {
     const output = bytesFromHumanFileSize(test.input);
     assertEquals(output, test.expected, `Expected ${test.input} to be ${test.expected} but got ${output}`);
+  }
+});
+
+Deno.test('that isValidMoveTarget works', () => {
+  const directory = { fullPath: '/Work/Reports/', isDirectory: true };
+  const file = { fullPath: '/Work/a.txt', isDirectory: false };
+
+  const tests: { name: string; items: MovableItem[]; sourcePath: string; targetPath: string; expected: boolean }[] = [
+    {
+      name: 'file into a sibling directory',
+      items: [file],
+      sourcePath: '/Work/',
+      targetPath: '/Work/Reports/',
+      expected: true,
+    },
+    { name: 'file into the trash', items: [file], sourcePath: '/Work/', targetPath: TRASH_PATH, expected: true },
+    {
+      name: 'directory into another directory',
+      items: [directory],
+      sourcePath: '/Work/',
+      targetPath: '/Archive/',
+      expected: true,
+    },
+    { name: 'nothing dragged', items: [], sourcePath: '/Work/', targetPath: '/Archive/', expected: false },
+    { name: 'back into the same parent', items: [file], sourcePath: '/Work/', targetPath: '/Work/', expected: false },
+    {
+      name: 'directory into itself',
+      items: [directory],
+      sourcePath: '/Work/',
+      targetPath: '/Work/Reports/',
+      expected: false,
+    },
+    {
+      name: 'directory into its own descendant',
+      items: [directory],
+      sourcePath: '/Work/',
+      targetPath: '/Work/Reports/2024/',
+      expected: false,
+    },
+    {
+      name: 'mixed selection where one directory is the target',
+      items: [file, directory],
+      sourcePath: '/Work/',
+      targetPath: '/Work/Reports/',
+      expected: false,
+    },
+  ];
+
+  for (const test of tests) {
+    const output = isValidMoveTarget(test.items, test.sourcePath, test.targetPath);
+    assertEquals(output, test.expected, `Expected ${test.name} to be ${test.expected} but got ${output}`);
   }
 });
