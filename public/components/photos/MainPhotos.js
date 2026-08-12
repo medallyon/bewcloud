@@ -139,7 +139,7 @@ export default function MainPhotos({
     }
     await Promise.all(promises);
   }
-  async function processEntry(entry, currentPath, filesToUpload) {
+  function processEntry(entry, currentPath, filesToUpload) {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
         const fileEntry = entry;
@@ -258,7 +258,7 @@ export default function MainPhotos({
     onDragOver: handleDragOver,
     onDrop: handleDrop
   }, isDraggingOver.value && h("div", {
-    class: "fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+    class: "fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
   }, h("div", {
     class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
   }, h("img", {
@@ -337,7 +337,7 @@ export default function MainPhotos({
     onClickSave: onClickSaveDirectory,
     onClose: onCloseCreateDirectory
   }), fileConflictModal.value?.isOpen ? h("div", {
-    class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class: "fixed inset-0 bg-black/50 flex items-center justify-center z-50"
   }, h("div", {
     class: "bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl"
   }, h("h3", {

@@ -1,8 +1,7 @@
 import { useSignal } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { SortColumn, sortDirectories, sortFiles, SortOrder } from '/public/ts/utils/files.ts';
+import { SortColumn, sortDirectories, sortFiles, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
 import { RequestBody as RenameRequestBody, ResponseBody as RenameResponseBody } from '/pages/api/files/rename.ts';
 import { RequestBody as MoveRequestBody, ResponseBody as MoveResponseBody } from '/pages/api/files/move.ts';
 import { RequestBody as DeleteRequestBody, ResponseBody as DeleteResponseBody } from '/pages/api/files/delete.ts';
@@ -306,7 +305,7 @@ export default function MainFiles(
   }
 
   // Process a single file system entry (file or directory)
-  async function processEntry(
+  function processEntry(
     entry: FileSystemEntry,
     currentPath: string,
     filesToUpload: File[],
@@ -814,6 +813,19 @@ export default function MainFiles(
     }
   }
 
+  function onToggleChooseAll(shouldChoose: boolean) {
+    if (!shouldChoose) {
+      chosenDirectories.value = [];
+      chosenFiles.value = [];
+      return;
+    }
+
+    chosenDirectories.value = directories.value.filter((directory) =>
+      `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH
+    ).map((directory) => ({ parent_path: directory.parent_path, directory_name: directory.directory_name }));
+    chosenFiles.value = files.value.map((file) => ({ parent_path: file.parent_path, file_name: file.file_name }));
+  }
+
   async function onClickBulkDelete() {
     if (
       confirm(
@@ -834,7 +846,7 @@ export default function MainFiles(
         }
 
         for (const file of chosenFiles.value) {
-          await onClickDeleteDirectory(file.parent_path, file.file_name, true);
+          await onClickDeleteFile(file.parent_path, file.file_name, true);
         }
 
         chosenDirectories.value = [];
@@ -1010,7 +1022,7 @@ export default function MainFiles(
     >
       {/* Drag and drop overlay */}
       {isDraggingOver.value && !fileShareId && (
-        <div class='fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center'>
+        <div class='fixed inset-0 z-50 bg-black/50 flex items-center justify-center'>
           <div class='bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center'>
             <img
               src='/public/images/add.svg'
@@ -1158,6 +1170,7 @@ export default function MainFiles(
           chosenFiles={chosenFiles.value}
           onClickChooseDirectory={onClickChooseDirectory}
           onClickChooseFile={onClickChooseFile}
+          onToggleChooseAll={onToggleChooseAll}
           onClickOpenRenameDirectory={onClickOpenRenameDirectory}
           onClickOpenRenameFile={onClickOpenRenameFile}
           onClickOpenMoveDirectory={onClickOpenMoveDirectory}
@@ -1250,7 +1263,7 @@ export default function MainFiles(
       {/* File Conflict Resolution Modal */}
       {fileConflictModal.value?.isOpen
         ? (
-          <div class='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+          <div class='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
             <div class='bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl'>
               <h3 class='text-lg font-semibold mb-4 text-gray-900'>File Already Exists</h3>
               <p class='text-gray-600 mb-6'>

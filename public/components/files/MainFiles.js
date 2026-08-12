@@ -1,5 +1,5 @@
 import { useSignal } from '@preact/signals';
-import { sortDirectories, sortFiles } from '/public/ts/utils/files.ts';
+import { sortDirectories, sortFiles, TRASH_PATH } from '/public/ts/utils/files.ts';
 import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import ListFiles from "./ListFiles.js";
@@ -200,7 +200,7 @@ export default function MainFiles({
     }
     await Promise.all(promises);
   }
-  async function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
+  function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
         const fileEntry = entry;
@@ -595,6 +595,21 @@ export default function MainFiles({
       chosenFiles.value = [...newChosenFiles];
     }
   }
+  function onToggleChooseAll(shouldChoose) {
+    if (!shouldChoose) {
+      chosenDirectories.value = [];
+      chosenFiles.value = [];
+      return;
+    }
+    chosenDirectories.value = directories.value.filter(directory => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).map(directory => ({
+      parent_path: directory.parent_path,
+      directory_name: directory.directory_name
+    }));
+    chosenFiles.value = files.value.map(file => ({
+      parent_path: file.parent_path,
+      file_name: file.file_name
+    }));
+  }
   async function onClickBulkDelete() {
     if (confirm(`Are you sure you want to delete ${bulkItemsCount === 1 ? 'this' : 'these'} ${bulkItemsCount} item${bulkItemsCount === 1 ? '' : 's'}?`)) {
       if (isDeleting.value) {
@@ -606,7 +621,7 @@ export default function MainFiles({
           await onClickDeleteDirectory(directory.parent_path, directory.directory_name, true);
         }
         for (const file of chosenFiles.value) {
-          await onClickDeleteDirectory(file.parent_path, file.file_name, true);
+          await onClickDeleteFile(file.parent_path, file.file_name, true);
         }
         chosenDirectories.value = [];
         chosenFiles.value = [];
@@ -741,7 +756,7 @@ export default function MainFiles({
     onDragOver: handleDragOver,
     onDrop: handleDrop
   }, isDraggingOver.value && !fileShareId && h("div", {
-    class: "fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+    class: "fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
   }, h("div", {
     class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
   }, h("img", {
@@ -840,6 +855,7 @@ export default function MainFiles({
     chosenFiles: chosenFiles.value,
     onClickChooseDirectory: onClickChooseDirectory,
     onClickChooseFile: onClickChooseFile,
+    onToggleChooseAll: onToggleChooseAll,
     onClickOpenRenameDirectory: onClickOpenRenameDirectory,
     onClickOpenRenameFile: onClickOpenRenameFile,
     onClickOpenMoveDirectory: onClickOpenMoveDirectory,
@@ -893,7 +909,7 @@ export default function MainFiles({
     onClickSave: onClickSaveDirectory,
     onClose: onCloseCreateDirectory
   }) : null, fileConflictModal.value?.isOpen ? h("div", {
-    class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class: "fixed inset-0 bg-black/50 flex items-center justify-center z-50"
   }, h("div", {
     class: "bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl"
   }, h("h3", {

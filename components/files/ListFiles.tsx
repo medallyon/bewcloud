@@ -11,6 +11,7 @@ interface ListFilesProps {
   chosenFiles?: Pick<DirectoryFile, 'parent_path' | 'file_name'>[];
   onClickChooseFile?: (parentPath: string, name: string) => void;
   onClickChooseDirectory?: (parentPath: string, name: string) => void;
+  onToggleChooseAll?: (shouldChoose: boolean) => void;
   onClickOpenRenameDirectory?: (parentPath: string, name: string) => void;
   onClickOpenRenameFile?: (parentPath: string, name: string) => void;
   onClickOpenMoveDirectory?: (parentPath: string, name: string) => void;
@@ -36,6 +37,7 @@ export default function ListFiles(
     chosenFiles = [],
     onClickChooseFile,
     onClickChooseDirectory,
+    onToggleChooseAll,
     onClickOpenRenameDirectory,
     onClickOpenRenameFile,
     onClickOpenMoveDirectory,
@@ -139,17 +141,13 @@ export default function ListFiles(
     return null;
   }
 
-  const isAnyItemChosen = chosenDirectories.length > 0 || chosenFiles.length > 0;
-
-  function chooseAllItems() {
-    if (typeof onClickChooseFile !== 'undefined') {
-      files.forEach((files) => onClickChooseFile(files.parent_path, files.file_name));
-    }
-
-    if (typeof onClickChooseDirectory !== 'undefined') {
-      directories.forEach((directory) => onClickChooseDirectory(directory.parent_path, directory.directory_name));
-    }
-  }
+  // .Trash is never selectable, so it doesn't count towards "all chosen"
+  const choosableDirectoriesCount =
+    directories.filter((directory) => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).length;
+  const chosenItemsCount = chosenDirectories.length + chosenFiles.length;
+  const areAllItemsChosen = chosenItemsCount > 0 &&
+    chosenItemsCount === choosableDirectoriesCount + files.length;
+  const areSomeItemsChosen = chosenItemsCount > 0 && !areAllItemsChosen;
 
   return (
     <section class='mx-auto max-w-7xl my-8'>
@@ -165,8 +163,14 @@ export default function ListFiles(
                   <input
                     class='w-3 h-3 cursor-pointer text-[#51A4FB] bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
                     type='checkbox'
-                    onClick={() => chooseAllItems()}
-                    checked={isAnyItemChosen}
+                    ref={(element) => {
+                      if (element) {
+                        element.indeterminate = areSomeItemsChosen;
+                      }
+                    }}
+                    onClick={() => onToggleChooseAll?.(!areAllItemsChosen)}
+                    checked={areAllItemsChosen}
+                    title={areAllItemsChosen ? 'Deselect all' : 'Select all'}
                   />
                 </th>
               )}
@@ -183,7 +187,7 @@ export default function ListFiles(
             const fullPath = `${directory.parent_path}${directory.directory_name}/`;
 
             return (
-              <tr class='bg-slate-700 hover:bg-slate-600 group'>
+              <tr key={fullPath} class='bg-slate-700 hover:bg-slate-600 group'>
                 {typeof onClickChooseDirectory === 'undefined' || fileShareId ? null : (
                   <td class='gap-3 pl-6 pr-2 py-4'>
                     {fullPath === TRASH_PATH ? null : (
@@ -325,7 +329,7 @@ export default function ListFiles(
             );
           })}
           {files.map((file) => (
-            <tr class='bg-slate-700 hover:bg-slate-600 group'>
+            <tr key={`${file.parent_path}${file.file_name}`} class='bg-slate-700 hover:bg-slate-600 group'>
               {typeof onClickChooseFile === 'undefined' || fileShareId ? null : (
                 <td class='gap-3 pl-6 pr-2 py-4'>
                   <input

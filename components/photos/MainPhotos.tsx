@@ -195,7 +195,7 @@ export default function MainPhotos(
   }
 
   // Process a single file system entry (file or directory) - photos only
-  async function processEntry(entry: FileSystemEntry, currentPath: string, filesToUpload: File[]): Promise<void> {
+  function processEntry(entry: FileSystemEntry, currentPath: string, filesToUpload: File[]): Promise<void> {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
         const fileEntry = entry as FileSystemFileEntry;
@@ -349,7 +349,7 @@ export default function MainPhotos(
     >
       {/* Drag and drop overlay */}
       {isDraggingOver.value && (
-        <div class='fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center'>
+        <div class='fixed inset-0 z-50 bg-black/50 flex items-center justify-center'>
           <div class='bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center'>
             <img
               src='/public/images/add.svg'
@@ -469,7 +469,7 @@ export default function MainPhotos(
       {/* File Conflict Resolution Modal */}
       {fileConflictModal.value?.isOpen
         ? (
-          <div class='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+          <div class='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
             <div class='bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl'>
               <h3 class='text-lg font-semibold mb-4 text-gray-900'>File Already Exists</h3>
               <p class='text-gray-600 mb-6'>

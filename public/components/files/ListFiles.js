@@ -7,6 +7,7 @@ export default function ListFiles({
   chosenFiles = [],
   onClickChooseFile,
   onClickChooseDirectory,
+  onToggleChooseAll,
   onClickOpenRenameDirectory,
   onClickOpenRenameFile,
   onClickOpenMoveDirectory,
@@ -88,15 +89,10 @@ export default function ListFiles({
   if (isShowingPhotos && directories.length === 0) {
     return null;
   }
-  const isAnyItemChosen = chosenDirectories.length > 0 || chosenFiles.length > 0;
-  function chooseAllItems() {
-    if (typeof onClickChooseFile !== 'undefined') {
-      files.forEach(files => onClickChooseFile(files.parent_path, files.file_name));
-    }
-    if (typeof onClickChooseDirectory !== 'undefined') {
-      directories.forEach(directory => onClickChooseDirectory(directory.parent_path, directory.directory_name));
-    }
-  }
+  const choosableDirectoriesCount = directories.filter(directory => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).length;
+  const chosenItemsCount = chosenDirectories.length + chosenFiles.length;
+  const areAllItemsChosen = chosenItemsCount > 0 && chosenItemsCount === choosableDirectoriesCount + files.length;
+  const areSomeItemsChosen = chosenItemsCount > 0 && !areAllItemsChosen;
   return h("section", {
     class: "mx-auto max-w-7xl my-8"
   }, h("table", {
@@ -109,8 +105,14 @@ export default function ListFiles({
   }, h("input", {
     class: "w-3 h-3 cursor-pointer text-[#51A4FB] bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600",
     type: "checkbox",
-    onClick: () => chooseAllItems(),
-    checked: isAnyItemChosen
+    ref: element => {
+      if (element) {
+        element.indeterminate = areSomeItemsChosen;
+      }
+    },
+    onClick: () => onToggleChooseAll?.(!areAllItemsChosen),
+    checked: areAllItemsChosen,
+    title: areAllItemsChosen ? 'Deselect all' : 'Select all'
   })), renderSortableHeader('Name', 'name'), renderSortableHeader('Last update', 'updated_at', 'w-64'), isShowingNotes || isShowingPhotos ? null : renderSortableHeader('Size', 'size_in_bytes', 'w-32'), isShowingPhotos || fileShareId ? null : h("th", {
     scope: "col",
     class: "px-6 py-4 font-medium text-white w-24"
@@ -119,6 +121,7 @@ export default function ListFiles({
   }, directories.map(directory => {
     const fullPath = `${directory.parent_path}${directory.directory_name}/`;
     return h("tr", {
+      key: fullPath,
       class: "bg-slate-700 hover:bg-slate-600 group"
     }, typeof onClickChooseDirectory === 'undefined' || fileShareId ? null : h("td", {
       class: "gap-3 pl-6 pr-2 py-4"
@@ -209,6 +212,7 @@ export default function ListFiles({
       title: "Manage public share link"
     })))));
   }), files.map(file => h("tr", {
+    key: `${file.parent_path}${file.file_name}`,
     class: "bg-slate-700 hover:bg-slate-600 group"
   }, typeof onClickChooseFile === 'undefined' || fileShareId ? null : h("td", {
     class: "gap-3 pl-6 pr-2 py-4"
