@@ -281,6 +281,8 @@ const routes: Routes = {
   verifyFileShare: createPageRouteHandler('file-share/[fileShareId]/verify.tsx', '/file-share/:fileShareId/verify'),
   fileShare: createPageRouteHandler('file-share/[fileShareId].ts', '/file-share/:fileShareId'),
   files: createPageRouteHandler('files.ts', '/files'),
+  // Same handler as the photos thumbnail: the files grid needs thumbnails for the same images, so it reuses it instead of adding a second Jimp endpoint
+  fileThumbnail: createPageRouteHandler('photos/thumbnail/[fileName].ts', '/files/thumbnail/:fileName'),
   openFile: createPageRouteHandler('files/open/[fileName].ts', '/files/open/:fileName'),
   mfaVerify: createPageRouteHandler('mfa-verify.tsx', '/mfa-verify'),
   news: createPageRouteHandler('news.ts', '/news'),
