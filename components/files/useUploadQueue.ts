@@ -5,6 +5,7 @@ import { Directory, DirectoryFile } from '/lib/types.ts';
 import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
 import { RequestBody as GetFilesRequestBody, ResponseBody as GetFilesResponseBody } from '/pages/api/files/get.ts';
+import { showToast } from '/public/ts/utils/toast.ts';
 
 // 10 MB chunks keep each request faster.
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
@@ -67,6 +68,15 @@ export function useUploadQueue(
   const uploadProgress = useSignal<string>('');
   const uploadError = useSignal<string>('');
 
+  // Every upload failure reuses one toast id, so repeated service-worker broadcasts of the same error replace the toast instead of stacking copies
+  function setUploadError(message: string) {
+    uploadError.value = message;
+
+    if (message) {
+      showToast({ message: `Upload failed — ${message}`, type: 'error', id: 'upload-error' });
+    }
+  }
+
   useEffect(() => {
     if (!isEnabled || !('serviceWorker' in navigator)) {
       return;
@@ -101,7 +111,7 @@ export function useUploadQueue(
 
       if (state.error && state.kind === uploadKind) {
         console.error(new Error(state.error));
-        uploadError.value = state.error;
+        setUploadError(state.error);
       }
 
       // Only apply the file/directory listing from an upload if it matches this tab's own current path; another tab may have uploaded into a different directory.
@@ -229,7 +239,7 @@ export function useUploadQueue(
 
     isUploading.value = true;
     uploadProgress.value = '';
-    uploadError.value = '';
+    setUploadError('');
 
     let itemsToUpload = items;
 
@@ -243,7 +253,7 @@ export function useUploadQueue(
 
       itemsToUpload = items.filter((item) => {
         if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
-          uploadError.value = `${item.file.name}: A file with this name already exists.`;
+          setUploadError(`${item.file.name}: A file with this name already exists.`);
           return false;
         }
 
@@ -276,7 +286,7 @@ export function useUploadQueue(
         }
       } catch (error) {
         console.error(error);
-        uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
+        setUploadError(`${item.file.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 

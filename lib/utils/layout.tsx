@@ -64,6 +64,25 @@ async function basicLayout(
       <body class="h-full">
         ${headerHtml} ${htmlContent}
 
+        <!-- Preact renders into this element, never replaces it, so the live region survives every toast -->
+        <div
+          id="toast-host"
+          aria-live="polite"
+          class="fixed bottom-4 right-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 pointer-events-none max-md:bottom-[calc(env(safe-area-inset-bottom)+4.5rem)]"
+        ></div>
+
+        <script type="module">
+          import { h, render, Fragment } from 'preact';
+
+          // Imported files need some preact globals to work
+          window.h = h;
+          window.Fragment = Fragment;
+
+          import ToastHost from '/public/components/ToastHost.js';
+
+          render(h(ToastHost, {}), document.getElementById('toast-host'));
+        </script>
+
         <script>
           // Tell the upload service worker to abort its queue before navigating away, instead of letting it keep running against a session that's about to be gone.
           document.getElementById('logout-link')?.addEventListener('click', () => {

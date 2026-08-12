@@ -1,5 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
+import { showToast } from '/public/ts/utils/toast.ts';
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
 export async function postToUploadServiceWorker(message) {
   if (!('serviceWorker' in navigator)) {
@@ -29,6 +30,16 @@ export function useUploadQueue({
   const isUploading = useSignal(false);
   const uploadProgress = useSignal('');
   const uploadError = useSignal('');
+  function setUploadError(message) {
+    uploadError.value = message;
+    if (message) {
+      showToast({
+        message: `Upload failed — ${message}`,
+        type: 'error',
+        id: 'upload-error'
+      });
+    }
+  }
   useEffect(() => {
     if (!isEnabled || !('serviceWorker' in navigator)) {
       return;
@@ -46,7 +57,7 @@ export function useUploadQueue({
       uploadProgress.value = state.kind === uploadKind ? state.uploadProgress || '' : '';
       if (state.error && state.kind === uploadKind) {
         console.error(new Error(state.error));
-        uploadError.value = state.error;
+        setUploadError(state.error);
       }
       if (state.newFiles && state.pathInView === path.value) {
         files.value = [...state.newFiles];
@@ -145,14 +156,14 @@ export function useUploadQueue({
     const pathInView = path.value;
     isUploading.value = true;
     uploadProgress.value = '';
-    uploadError.value = '';
+    setUploadError('');
     let itemsToUpload = items;
     if (checkExistingFiles) {
       const uniqueParentPaths = [...new Set(items.map(item => item.parentPath))];
       const existingNamesByParentPath = new Map(await Promise.all(uniqueParentPaths.map(async parentPath => [parentPath, await findExistingNames(parentPath)])));
       itemsToUpload = items.filter(item => {
         if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
-          uploadError.value = `${item.file.name}: A file with this name already exists.`;
+          setUploadError(`${item.file.name}: A file with this name already exists.`);
           return false;
         }
         return true;
@@ -183,7 +194,7 @@ export function useUploadQueue({
         }
       } catch (error) {
         console.error(error);
-        uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
+        setUploadError(`${item.file.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     isUploading.value = false;
