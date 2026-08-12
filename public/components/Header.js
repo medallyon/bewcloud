@@ -1,4 +1,4 @@
-import { capitalizeWord } from '/public/ts/utils/misc.ts';
+import { getMenuItems } from '/public/ts/utils/navigation.ts';
 import { DEFAULT_THEME_ID, THEME_IDS, THEME_LABELS } from '/public/ts/utils/theme.ts';
 export default function Header({
   route,
@@ -6,16 +6,9 @@ export default function Header({
   enabledApps,
   theme = DEFAULT_THEME_ID
 }) {
-  const activeClass = 'bg-slate-800 text-white rounded-md px-3 py-2 text-sm font-medium';
-  const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-md px-3 py-2 text-sm font-medium';
-  const mobileActiveClass = 'bg-slate-800 text-white block rounded-md px-3 py-2 text-base font-medium';
-  const mobileDefaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white block rounded-md px-3 py-2 text-base font-medium';
+  const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg font-medium';
   const iconWidthAndHeightInPixels = 20;
-  const potentialMenuItems = enabledApps.map(app => ({
-    url: `/${app}`,
-    label: capitalizeWord(app)
-  }));
-  const menuItems = potentialMenuItems.filter(Boolean);
+  const menuItems = getMenuItems(enabledApps);
   if (user && !route.startsWith('/file-share')) {
     const activeMenu = menuItems.find(menu => route.startsWith(menu.url));
     let pageLabel = activeMenu?.label || '404 - Page not found';
@@ -34,100 +27,66 @@ export default function Header({
     if (route.startsWith('/calendar')) {
       pageLabel = 'Calendar';
     }
-    return h(Fragment, null, h("nav", {
-      class: "bg-slate-950"
+    return h("nav", {
+      class: "bg-slate-950 pt-[env(safe-area-inset-top)]"
     }, h("div", {
-      class: "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
-    }, h("div", {
-      class: "flex h-16 items-center justify-between"
-    }, h("div", {
-      class: "flex items-center"
-    }, h("div", {
-      class: "shrink-0"
+      class: "flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8"
     }, h("a", {
-      href: "/"
+      href: "/",
+      class: "shrink-0 md:hidden"
     }, h("img", {
-      class: "h-12 w-12 drop-shadow-md",
+      class: "h-10 w-10 drop-shadow-md",
       src: "/public/images/logomark.svg",
       alt: "a stylized blue cloud"
-    }))), h("div", {
-      class: "hidden md:block"
-    }, h("div", {
-      class: "ml-10 flex items-center space-x-4"
-    }, menuItems.map(menu => h("a", {
-      href: menu.url,
-      class: route.startsWith(menu.url) ? activeClass : defaultClass
-    }, h("img", {
-      src: `/public/images${menu.url}${'.svg'}`,
-      alt: menu.label,
-      title: menu.label,
-      width: iconWidthAndHeightInPixels,
-      height: iconWidthAndHeightInPixels,
-      class: "white"
-    })))))), h("div", {
-      class: "ml-4 flex items-center md:ml-6"
-    }, h("div", {
-      class: "ml-10 flex items-center space-x-4"
-    }, h("span", {
-      class: "mx-2 text-white text-sm"
-    }, user.email), h("details", {
-      class: "relative",
+    })), h("h1", {
+      class: "flex-1 truncate text-xl font-bold tracking-tight text-white sm:text-2xl"
+    }, pageLabel), h("details", {
+      class: "relative shrink-0",
       id: "theme-switch"
     }, h("summary", {
-      class: `${defaultClass} list-none`,
-      title: "Change theme"
+      class: `${defaultClass} flex min-h-11 min-w-11 list-none items-center justify-center`
     }, h("img", {
       src: "/public/images/theme.svg",
-      alt: "Theme",
+      alt: "A stack of colour swatches",
       title: "Change theme",
       width: iconWidthAndHeightInPixels,
       height: iconWidthAndHeightInPixels,
       class: "white"
     })), h("div", {
-      class: "absolute right-0 z-20 mt-2 w-56 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15"
+      class: "absolute right-0 z-40 mt-2 w-56 origin-top-right rounded-xl border border-slate-600 bg-slate-700 shadow-lg"
     }, h("div", {
       class: "py-1"
     }, THEME_IDS.map(themeId => h("button", {
       key: themeId,
       type: "button",
       "data-theme-id": themeId,
-      class: `block w-full px-4 py-2 text-left text-sm hover:bg-slate-600 ${themeId === theme ? 'text-accent font-semibold' : 'text-white'}`
-    }, THEME_LABELS.get(themeId)))))), h("a", {
-      href: "/settings",
-      class: route.startsWith('/settings') ? activeClass : defaultClass
+      class: `block min-h-11 w-full px-4 text-left text-sm hover:bg-slate-600 ${themeId === theme ? 'text-accent font-semibold' : 'text-white'}`
+    }, THEME_LABELS.get(themeId)))))), h("details", {
+      class: "relative shrink-0",
+      id: "account-menu"
+    }, h("summary", {
+      class: `${defaultClass} flex min-h-11 min-w-11 list-none items-center justify-center`
     }, h("img", {
       src: "/public/images/settings.svg",
-      alt: "Settings",
-      title: "Settings",
+      alt: "A cog wheel",
+      title: "Account",
       width: iconWidthAndHeightInPixels,
       height: iconWidthAndHeightInPixels,
       class: "white"
-    })), h("a", {
+    })), h("div", {
+      class: "absolute right-0 z-40 mt-2 w-64 origin-top-right rounded-xl border border-slate-600 bg-slate-700 shadow-lg"
+    }, h("div", {
+      class: "py-1"
+    }, h("span", {
+      class: "block truncate px-4 py-2 text-xs text-slate-300"
+    }, user.email), h("a", {
+      href: "/settings",
+      class: `flex min-h-11 items-center px-4 text-sm font-normal text-white hover:bg-slate-600 ${route.startsWith('/settings') ? 'bg-slate-600' : ''}`
+    }, "Settings"), h("a", {
       href: "/logout",
       id: "logout-link",
-      class: defaultClass
-    }, h("img", {
-      src: "/public/images/logout.svg",
-      alt: "Logout",
-      title: "Logout",
-      width: iconWidthAndHeightInPixels,
-      height: iconWidthAndHeightInPixels,
-      class: "white"
-    })))))), h("div", {
-      class: "md:hidden",
-      id: "mobile-menu"
-    }, h("div", {
-      class: "space-y-1 px-2 pb-3 pt-2 sm:px-3"
-    }, menuItems.map(menu => h("a", {
-      href: menu.url,
-      class: route.startsWith(menu.url) ? mobileActiveClass : mobileDefaultClass
-    }, menu.label))))), h("header", {
-      class: "bg-gray-900 shadow-md"
-    }, h("div", {
-      class: "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
-    }, h("h1", {
-      class: "text-3xl font-bold tracking-tight text-white"
-    }, pageLabel))));
+      class: "flex min-h-11 items-center px-4 text-sm font-normal text-white hover:bg-slate-600"
+    }, "Logout"))))));
   }
   return h("header", {
     class: "px-4 pt-8 pb-2 max-w-3xl mx-auto flex flex-col items-center justify-center"

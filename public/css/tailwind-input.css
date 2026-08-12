@@ -189,6 +189,11 @@ html[data-theme='ember'] {
     @apply mx-auto max-w-7xl py-6 sm:px-6 lg:px-8 text-white;
   }
 
+  /* The files view is a drive, not a document: it uses the full width left by the sidebar instead of the shared reading column */
+  main:has(> #main-files) {
+    @apply max-w-none;
+  }
+
   form {
     @apply px-4 py-8 max-w-3xl mx-auto lg:min-w-96;
   }

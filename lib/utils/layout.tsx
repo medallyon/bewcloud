@@ -7,6 +7,7 @@ import { escapeHtml, html } from '/public/ts/utils/misc.ts';
 import { DEFAULT_THEME_ID, isThemeId, THEME_COLORS } from '/public/ts/utils/theme.ts';
 
 import Header from '/components/Header.tsx';
+import Sidebar from '/components/Sidebar.tsx';
 
 interface BasicLayoutOptions
   extends Pick<RequestHandlerParams, 'user' | 'session' | 'request' | 'match' | 'isRunningLocally'> {
@@ -38,6 +39,13 @@ async function basicLayout(
 
   const headerHtml = renderToString(headerReactNode);
 
+  // App navigation only exists for a signed-in user outside a public file share, matching what the header renders
+  const isAppNavigationShown = Boolean(user) && !currentPath.startsWith('/file-share');
+
+  const sidebarHtml = isAppNavigationShown
+    ? renderToString(<Sidebar route={currentPath} enabledApps={enabledApps} />)
+    : '';
+
   return html`
     <!DOCTYPE html>
     <html lang="en" dir="ltr" class="h-full bg-slate-800" data-theme="${theme}">
@@ -62,7 +70,15 @@ async function basicLayout(
       </script>
 
       <body class="h-full">
-        ${headerHtml} ${htmlContent}
+        <div class="flex min-h-full">
+          ${sidebarHtml}
+
+          <div class="flex min-w-0 flex-1 flex-col ${isAppNavigationShown
+            ? 'pb-[calc(env(safe-area-inset-bottom)+3.5rem)] md:pb-0'
+            : ''}">
+            ${headerHtml} ${htmlContent}
+          </div>
+        </div>
 
         <!-- Preact renders into this element, never replaces it, so the live region survives every toast -->
         <div
