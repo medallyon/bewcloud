@@ -1,4 +1,5 @@
 import { useSignal } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { SortColumn, sortDirectories, sortFiles, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
@@ -15,15 +16,26 @@ import {
   updateFileShare,
 } from './fileActions.ts';
 import { useFileUploadDrop } from './useFileUploadDrop.ts';
+import { showToast } from '/public/ts/utils/toast.ts';
 import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
-import ListFiles from './ListFiles.tsx';
+import FilesList from './FilesList.tsx';
+import FilesBulkBar from './FilesBulkBar.tsx';
+import FilesEmptyState from './FilesEmptyState.tsx';
+import ConfirmModal, { ConfirmModalState } from './ConfirmModal.tsx';
+import { FileItem, toFileItems } from './fileItemModel.ts';
 import FilesBreadcrumb from './FilesBreadcrumb.tsx';
 import CreateDirectoryModal from './CreateDirectoryModal.tsx';
 import RenameDirectoryOrFileModal from './RenameDirectoryOrFileModal.tsx';
 import MoveDirectoryOrFileModal from './MoveDirectoryOrFileModal.tsx';
 import CreateShareModal from './CreateShareModal.tsx';
 import ManageShareModal from './ManageShareModal.tsx';
+
+const SORT_OPTIONS: { column: SortColumn; label: string }[] = [
+  { column: 'name', label: 'Name' },
+  { column: 'updated_at', label: 'Last update' },
+  { column: 'size_in_bytes', label: 'Size' },
+];
 
 interface MainFilesProps {
   initialDirectories: Directory[];
@@ -62,10 +74,7 @@ export default function MainFiles(
   const sortOrder = useSignal<SortOrder>(initialSortOrder);
   const chosenDirectories = useSignal<Pick<Directory, 'parent_path' | 'directory_name'>[]>([]);
   const chosenFiles = useSignal<Pick<DirectoryFile, 'parent_path' | 'file_name'>[]>([]);
-  const isAnyItemChosen = chosenDirectories.value.length > 0 || chosenFiles.value.length > 0;
-  const bulkItemsCount = chosenDirectories.value.length + chosenFiles.value.length;
   const areNewOptionsOpen = useSignal<boolean>(false);
-  const areBulkOptionsOpen = useSignal<boolean>(false);
   const isNewDirectoryModalOpen = useSignal<boolean>(false);
   const renameDirectoryOrFileModal = useSignal<
     { isOpen: boolean; isDirectory: boolean; parentPath: string; name: string } | null
@@ -73,6 +82,7 @@ export default function MainFiles(
   const moveDirectoryOrFileModal = useSignal<
     { isOpen: boolean; isDirectory: boolean; path: string; name: string } | null
   >(null);
+  const confirmModal = useSignal<ConfirmModalState | null>(null);
   const createShareModal = useSignal<{ isOpen: boolean; filePath: string; password?: string } | null>(null);
   const manageShareModal = useSignal<{ isOpen: boolean; fileShareId: string } | null>(null);
 
@@ -106,6 +116,39 @@ export default function MainFiles(
     enqueueUpload,
     onUploadStart: () => areNewOptionsOpen.value = false,
   });
+
+  const items = toFileItems(directories.value, files.value, {
+    routePath: fileShareId ? `file-share/${fileShareId}` : 'files',
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+  });
+  const chosenKeys = [
+    ...chosenDirectories.value.map((directory) => `${directory.parent_path}${directory.directory_name}/`),
+    ...chosenFiles.value.map((file) => `${file.parent_path}${file.file_name}`),
+  ];
+  const choosableItemsCount = items.filter((item) => !item.isTrash).length;
+  const areAllItemsChosen = chosenKeys.length > 0 && chosenKeys.length === choosableItemsCount;
+  const areSomeItemsChosen = chosenKeys.length > 0 && !areAllItemsChosen;
+
+  // <details> menus close themselves, but a modal or an open menu should also give way to Escape
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      confirmModal.value = null;
+      areNewOptionsOpen.value = false;
+
+      for (const menu of document.querySelectorAll<HTMLDetailsElement>('details[open]')) {
+        menu.open = false;
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   function onClickSort(column: SortColumn) {
     let newSortOrder: SortOrder = 'asc';
@@ -194,29 +237,12 @@ export default function MainFiles(
     isNewDirectoryModalOpen.value = false;
   }
 
-  function toggleNewOptionsDropdown() {
-    areNewOptionsOpen.value = !areNewOptionsOpen.value;
-  }
-
-  function toggleBulkOptionsDropdown() {
-    areBulkOptionsOpen.value = !areBulkOptionsOpen.value;
-  }
-
-  function onClickOpenRenameDirectory(parentPath: string, name: string) {
+  function onClickOpenRename(item: FileItem) {
     renameDirectoryOrFileModal.value = {
       isOpen: true,
-      isDirectory: true,
-      parentPath,
-      name,
-    };
-  }
-
-  function onClickOpenRenameFile(parentPath: string, name: string) {
-    renameDirectoryOrFileModal.value = {
-      isOpen: true,
-      isDirectory: false,
-      parentPath,
-      name,
+      isDirectory: item.isDirectory,
+      parentPath: item.parentPath,
+      name: item.name,
     };
   }
 
@@ -274,21 +300,12 @@ export default function MainFiles(
     renameDirectoryOrFileModal.value = null;
   }
 
-  function onClickOpenMoveDirectory(parentPath: string, name: string) {
+  function onClickOpenMove(item: FileItem) {
     moveDirectoryOrFileModal.value = {
       isOpen: true,
-      isDirectory: true,
-      path: parentPath,
-      name,
-    };
-  }
-
-  function onClickOpenMoveFile(parentPath: string, name: string) {
-    moveDirectoryOrFileModal.value = {
-      isOpen: true,
-      isDirectory: false,
-      path: parentPath,
-      name,
+      isDirectory: item.isDirectory,
+      path: item.parentPath,
+      name: item.name,
     };
   }
 
@@ -338,97 +355,121 @@ export default function MainFiles(
     moveDirectoryOrFileModal.value = null;
   }
 
-  function onClickDownloadDirectory(parentPath: string, name: string) {
+  function onClickDownloadDirectory(item: FileItem) {
     // Create download URL with proper path encoding
-    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(parentPath)}&name=${
-      encodeURIComponent(name)
+    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(item.parentPath)}&name=${
+      encodeURIComponent(item.name)
     }`;
 
     // Create a temporary anchor element to trigger download
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `${name}.zip`;
+    link.download = `${item.name}.zip`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }
 
-  async function onClickDeleteDirectory(parentPath: string, name: string, isBulkDeleting = false) {
-    if (isBulkDeleting || confirm('Are you sure you want to delete this directory?')) {
-      if (!isBulkDeleting && isDeleting.value) {
-        return;
-      }
+  // Deletes without asking: the callers below own the confirmation, so bulk deletion asks once instead of once per item
+  async function deleteItem(item: FileItem) {
+    if (item.isDirectory) {
+      const result = await deleteDirectory(item.parentPath, item.name);
 
-      isDeleting.value = true;
+      directories.value = [...result.newDirectories];
 
-      try {
-        const result = await deleteDirectory(parentPath, name);
+      // Tell the service worker to drop it instead of letting it keep going. Any queued upload still writing into this directory (or a subdirectory of it) is now writing into nothing.
+      await postToUploadServiceWorker({
+        type: 'DIRECTORY_DELETED',
+        sessionTag: uploadSessionTag ?? '',
+        path: item.fullPath,
+      });
 
-        directories.value = [...result.newDirectories];
-
-        // Tell the service worker to drop it instead of letting it keep going. Any queued upload still writing into this directory (or a subdirectory of it) is now writing into nothing.
-        await postToUploadServiceWorker({
-          type: 'DIRECTORY_DELETED',
-          sessionTag: uploadSessionTag ?? '',
-          path: `${parentPath}${name}/`,
-        });
-      } catch (error) {
-        console.error(error);
-      }
-
-      isDeleting.value = false;
-    }
-  }
-
-  async function onClickDeleteFile(parentPath: string, name: string, isBulkDeleting = false) {
-    if (isBulkDeleting || confirm('Are you sure you want to delete this file?')) {
-      if (!isBulkDeleting && isDeleting.value) {
-        return;
-      }
-
-      isDeleting.value = true;
-
-      try {
-        const result = await deleteFile(parentPath, name);
-
-        files.value = [...result.newFiles];
-      } catch (error) {
-        console.error(error);
-      }
-
-      isDeleting.value = false;
-    }
-  }
-
-  function onClickChooseDirectory(parentPath: string, name: string) {
-    if (parentPath === '/' && name === '.Trash') {
       return;
     }
 
-    const chosenDirectoryIndex = chosenDirectories.value.findIndex((directory) =>
-      directory.parent_path === parentPath && directory.directory_name === name
-    );
+    const result = await deleteFile(item.parentPath, item.name);
 
-    if (chosenDirectoryIndex === -1) {
-      chosenDirectories.value = [...chosenDirectories.value, { parent_path: parentPath, directory_name: name }];
-    } else {
-      const newChosenDirectories = chosenDirectories.peek();
-      newChosenDirectories.splice(chosenDirectoryIndex, 1);
-      chosenDirectories.value = [...newChosenDirectories];
-    }
+    files.value = [...result.newFiles];
   }
 
-  function onClickChooseFile(parentPath: string, name: string) {
+  async function deleteItems(items: FileItem[]) {
+    if (isDeleting.value) {
+      return;
+    }
+
+    isDeleting.value = true;
+
+    try {
+      for (const item of items) {
+        await deleteItem(item);
+      }
+
+      chosenDirectories.value = [];
+      chosenFiles.value = [];
+    } catch (error) {
+      console.error(error);
+      showToast({ message: 'Some items could not be deleted.', type: 'error' });
+    }
+
+    isDeleting.value = false;
+  }
+
+  // deleteDirectoryOrFile moves into .Trash unless the item already lives there, so the copy has to say which one happens
+  function onClickDelete(item: FileItem) {
+    const isAlreadyInTrash = item.fullPath.startsWith(TRASH_PATH);
+    const itemLabel = item.isDirectory ? 'directory' : 'file';
+
+    confirmModal.value = {
+      isOpen: true,
+      title: isAlreadyInTrash ? `Delete ${itemLabel}` : `Move ${itemLabel} to Trash`,
+      message: isAlreadyInTrash
+        ? `"${item.name}" will be deleted permanently. Any public share link for it stops working.`
+        : `"${item.name}" moves to the Trash. Any public share link for it stops working, and undoing that isn't possible.`,
+      confirmLabel: isAlreadyInTrash ? 'Delete permanently' : 'Move to Trash',
+      isDangerous: true,
+      onConfirm: async () => {
+        confirmModal.value = null;
+
+        await deleteItems([item]);
+
+        showToast({
+          message: isAlreadyInTrash ? `Deleted "${item.name}".` : `Moved "${item.name}" to the Trash.`,
+          type: 'success',
+        });
+      },
+    };
+  }
+
+  function onToggleChoose(item: FileItem) {
+    if (item.isTrash) {
+      return;
+    }
+
+    if (item.isDirectory) {
+      const chosenDirectoryIndex = chosenDirectories.value.findIndex((directory) =>
+        directory.parent_path === item.parentPath && directory.directory_name === item.name
+      );
+
+      if (chosenDirectoryIndex === -1) {
+        chosenDirectories.value = [...chosenDirectories.value, {
+          parent_path: item.parentPath,
+          directory_name: item.name,
+        }];
+      } else {
+        chosenDirectories.value = chosenDirectories.value.filter((_directory, index) => index !== chosenDirectoryIndex);
+      }
+
+      return;
+    }
+
     const chosenFileIndex = chosenFiles.value.findIndex((file) =>
-      file.parent_path === parentPath && file.file_name === name
+      file.parent_path === item.parentPath && file.file_name === item.name
     );
 
     if (chosenFileIndex === -1) {
-      chosenFiles.value = [...chosenFiles.value, { parent_path: parentPath, file_name: name }];
+      chosenFiles.value = [...chosenFiles.value, { parent_path: item.parentPath, file_name: item.name }];
     } else {
-      const newChosenFiles = chosenFiles.peek();
-      newChosenFiles.splice(chosenFileIndex, 1);
-      chosenFiles.value = [...newChosenFiles];
+      chosenFiles.value = chosenFiles.value.filter((_file, index) => index !== chosenFileIndex);
     }
   }
 
@@ -445,40 +486,31 @@ export default function MainFiles(
     chosenFiles.value = files.value.map((file) => ({ parent_path: file.parent_path, file_name: file.file_name }));
   }
 
-  async function onClickBulkDelete() {
-    if (
-      confirm(
-        `Are you sure you want to delete ${bulkItemsCount === 1 ? 'this' : 'these'} ${bulkItemsCount} item${
-          bulkItemsCount === 1 ? '' : 's'
-        }?`,
-      )
-    ) {
-      if (isDeleting.value) {
-        return;
-      }
+  function onClickBulkDelete() {
+    const chosenItems = items.filter((item) => chosenKeys.includes(item.key));
 
-      isDeleting.value = true;
+    confirmModal.value = {
+      isOpen: true,
+      title: `Move ${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'} to Trash`,
+      message: `${
+        chosenItems.length === 1 ? 'It' : 'They'
+      } move to the Trash, and any public share link stops working.`,
+      confirmLabel: 'Move to Trash',
+      isDangerous: true,
+      onConfirm: async () => {
+        confirmModal.value = null;
 
-      try {
-        for (const directory of chosenDirectories.value) {
-          await onClickDeleteDirectory(directory.parent_path, directory.directory_name, true);
-        }
+        await deleteItems(chosenItems);
 
-        for (const file of chosenFiles.value) {
-          await onClickDeleteFile(file.parent_path, file.file_name, true);
-        }
-
-        chosenDirectories.value = [];
-        chosenFiles.value = [];
-      } catch (error) {
-        console.error(error);
-      }
-
-      isDeleting.value = false;
-    }
+        showToast({
+          message: `Moved ${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'} to the Trash.`,
+          type: 'success',
+        });
+      },
+    };
   }
 
-  function onClickCreateShare(filePath: string) {
+  function onClickCreateShare(item: FileItem) {
     if (createShareModal.value?.isOpen) {
       createShareModal.value = null;
       return;
@@ -486,7 +518,8 @@ export default function MainFiles(
 
     createShareModal.value = {
       isOpen: true,
-      filePath,
+      // The item's own path without a directory's trailing slash, which the endpoint doesn't expect
+      filePath: item.isDirectory ? item.fullPath.slice(0, -1) : item.fullPath,
     };
   }
 
@@ -557,25 +590,38 @@ export default function MainFiles(
     manageShareModal.value = null;
   }
 
-  async function onClickDeleteFileShare(fileShareId: string) {
-    if (!fileShareId || isDeleting.value || !confirm('Are you sure you want to delete this public share link?')) {
+  function onClickDeleteFileShare(fileShareId: string) {
+    if (!fileShareId || isDeleting.value) {
       return;
     }
 
-    isDeleting.value = true;
+    confirmModal.value = {
+      isOpen: true,
+      title: 'Delete public share link',
+      message: 'Anyone holding the link loses access. The file itself stays where it is.',
+      confirmLabel: 'Delete link',
+      isDangerous: true,
+      onConfirm: async () => {
+        confirmModal.value = null;
+        isDeleting.value = true;
 
-    try {
-      const result = await deleteFileShare(path.value, fileShareId);
+        try {
+          const result = await deleteFileShare(path.value, fileShareId);
 
-      directories.value = [...result.newDirectories];
-      files.value = [...result.newFiles];
+          directories.value = [...result.newDirectories];
+          files.value = [...result.newFiles];
 
-      manageShareModal.value = null;
-    } catch (error) {
-      console.error(error);
-    }
+          manageShareModal.value = null;
 
-    isDeleting.value = false;
+          showToast({ message: 'Public share link deleted.', type: 'success' });
+        } catch (error) {
+          console.error(error);
+          showToast({ message: 'Failed to delete the public share link.', type: 'error' });
+        }
+
+        isDeleting.value = false;
+      },
+    };
   }
 
   return (
@@ -603,154 +649,136 @@ export default function MainFiles(
         </div>
       )}
 
-      <section class='flex flex-row items-center justify-between mb-4'>
-        <section class='relative inline-block text-left mr-2'>
-          <section class='flex flex-row items-center justify-start'>
-            {!fileShareId ? <SearchFiles /> : null}
-
-            {isAnyItemChosen
-              ? (
-                <section class='relative inline-block text-left ml-2'>
-                  <div>
-                    <button
-                      class='inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2 w-11 h-9'
-                      type='button'
-                      title='Bulk actions'
-                      id='bulk-button'
-                      aria-expanded='true'
-                      aria-haspopup='true'
-                      onClick={() => toggleBulkOptionsDropdown()}
-                    >
-                      <img
-                        src={`/public/images/${areBulkOptionsOpen.value ? 'hide-options' : 'show-options'}.svg`}
-                        alt='Bulk actions'
-                        class={`white w-5 max-w-5`}
-                        width={20}
-                        height={20}
-                      />
-                    </button>
-                  </div>
-
-                  <div
-                    class={`absolute left-0 z-10 mt-2 w-44 origin-top-left rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15 focus:outline-none ${
-                      !areBulkOptionsOpen.value ? 'hidden' : ''
-                    }`}
-                    role='menu'
-                    aria-orientation='vertical'
-                    aria-labelledby='bulk-button'
-                    tabindex={-1}
-                  >
-                    <div class='py-1'>
-                      <button
-                        class={`text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`}
-                        onClick={() => onClickBulkDelete()}
-                        type='button'
-                      >
-                        Delete {bulkItemsCount} item{bulkItemsCount === 1 ? '' : 's'}
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              )
-              : null}
-          </section>
-        </section>
-
-        <section class='flex items-center justify-end'>
+      <section class='sticky top-0 z-20 -mx-2 mb-3 flex flex-wrap items-center gap-2 bg-slate-800 px-2 py-2'>
+        <section class='order-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto'>
           <FilesBreadcrumb
             path={path.value}
             fileShareId={fileShareId}
             sortBy={sortBy.value}
             sortOrder={sortOrder.value}
           />
+        </section>
+
+        <section class='order-3 flex w-full items-center gap-2 md:order-2 md:w-auto'>
+          {!fileShareId ? <SearchFiles /> : null}
+
+          {/* Grid view has no column headers, so sorting also needs to be reachable from a menu */}
+          <details class='relative shrink-0' name='files-toolbar-menu'>
+            <summary
+              class='flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white'
+              title='Sort'
+            >
+              <img
+                src={`/public/images/sort-${sortOrder.value === 'asc' ? 'up' : 'down'}.svg`}
+                alt='Sort'
+                class='white w-5 max-w-5'
+                width={20}
+                height={20}
+              />
+            </summary>
+            <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
+              {SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.column}
+                  type='button'
+                  class={`flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-slate-600 ${
+                    sortBy.value === option.column ? 'text-accent font-semibold' : 'text-white'
+                  }`}
+                  onClick={() => onClickSort(option.column)}
+                >
+                  {option.label}
+                  {sortBy.value === option.column ? (sortOrder.value === 'asc' ? ' ↑' : ' ↓') : ''}
+                </button>
+              ))}
+            </div>
+          </details>
 
           {!fileShareId
             ? (
-              <section class='relative inline-block text-left ml-2'>
-                <div>
+              <details class='relative shrink-0' name='files-toolbar-menu'>
+                <summary
+                  class='flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-color hover:bg-accent-hover'
+                  title='Add new file or directory'
+                >
+                  <img
+                    src='/public/images/add.svg'
+                    alt=''
+                    class={`white ${
+                      isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''
+                    }`}
+                    width={20}
+                    height={20}
+                  />
+                  New
+                </summary>
+                <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
                   <button
-                    class='inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2'
+                    class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
+                    onClick={() => onClickUploadFile()}
                     type='button'
-                    title='Add new file or directory'
-                    id='new-button'
-                    aria-expanded='true'
-                    aria-haspopup='true'
-                    onClick={() => toggleNewOptionsDropdown()}
                   >
-                    <img
-                      src='/public/images/add.svg'
-                      alt='Add new file or directory'
-                      class={`white ${
-                        isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''
-                      }`}
-                      width={20}
-                      height={20}
-                    />
+                    Upload files
+                  </button>
+                  <button
+                    class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
+                    onClick={() => onClickUploadFile(true)}
+                    type='button'
+                  >
+                    Upload directory
+                  </button>
+                  <button
+                    class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
+                    onClick={() => onClickCreateDirectory()}
+                    type='button'
+                  >
+                    New directory
                   </button>
                 </div>
-
-                <div
-                  class={`absolute right-0 z-10 mt-2 w-44 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15 focus:outline-none ${
-                    !areNewOptionsOpen.value ? 'hidden' : ''
-                  }`}
-                  role='menu'
-                  aria-orientation='vertical'
-                  aria-labelledby='new-button'
-                  tabindex={-1}
-                >
-                  <div class='py-1'>
-                    <button
-                      class={`text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`}
-                      onClick={() => onClickUploadFile()}
-                      type='button'
-                    >
-                      Upload Files
-                    </button>
-                    <button
-                      class={`text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`}
-                      onClick={() => onClickUploadFile(true)}
-                      type='button'
-                    >
-                      Upload Directory
-                    </button>
-                    <button
-                      class={`text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`}
-                      onClick={() => onClickCreateDirectory()}
-                      type='button'
-                    >
-                      New Directory
-                    </button>
-                  </div>
-                </div>
-              </section>
+              </details>
             )
             : null}
         </section>
       </section>
 
-      <section class='mx-auto max-w-7xl my-8'>
-        <ListFiles
-          directories={directories.value}
-          files={files.value}
-          chosenDirectories={chosenDirectories.value}
-          chosenFiles={chosenFiles.value}
-          onClickChooseDirectory={onClickChooseDirectory}
-          onClickChooseFile={onClickChooseFile}
-          onToggleChooseAll={onToggleChooseAll}
-          onClickOpenRenameDirectory={onClickOpenRenameDirectory}
-          onClickOpenRenameFile={onClickOpenRenameFile}
-          onClickOpenMoveDirectory={onClickOpenMoveDirectory}
-          onClickOpenMoveFile={onClickOpenMoveFile}
-          onClickDeleteDirectory={onClickDeleteDirectory}
-          onClickDeleteFile={onClickDeleteFile}
-          onClickCreateShare={isFileSharingAllowed ? onClickCreateShare : undefined}
-          onClickOpenManageShare={isFileSharingAllowed ? onClickOpenManageShare : undefined}
-          onClickDownloadDirectory={areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
-          fileShareId={fileShareId}
-          sortBy={sortBy.value}
-          sortOrder={sortOrder.value}
-          onClickSort={onClickSort}
-        />
+      <section class='my-2'>
+        {!fileShareId
+          ? (
+            <FilesBulkBar
+              chosenItemsCount={chosenKeys.length}
+              onClickDelete={onClickBulkDelete}
+              onClickClear={() => onToggleChooseAll(false)}
+            />
+          )
+          : null}
+
+        {items.length === 0
+          ? (
+            <FilesEmptyState
+              itemPluralLabel='files'
+              isTrash={path.value === TRASH_PATH}
+              onClickUpload={fileShareId ? undefined : () => onClickUploadFile()}
+            />
+          )
+          : (
+            <FilesList
+              items={items}
+              chosenKeys={chosenKeys}
+              areAllItemsChosen={areAllItemsChosen}
+              areSomeItemsChosen={areSomeItemsChosen}
+              isSelectable={!fileShareId}
+              sortBy={sortBy.value}
+              sortOrder={sortOrder.value}
+              onClickSort={onClickSort}
+              onToggleChoose={onToggleChoose}
+              onToggleChooseAll={onToggleChooseAll}
+              onClickRename={fileShareId ? undefined : onClickOpenRename}
+              onClickMove={fileShareId ? undefined : onClickOpenMove}
+              onClickDelete={fileShareId ? undefined : onClickDelete}
+              onClickDownload={!fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined}
+              onClickCreateShare={!fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined}
+              onClickManageShare={!fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined}
+            />
+          )}
 
         <span
           class={`flex justify-end items-center text-sm mt-1 mx-2 text-slate-100`}
@@ -807,6 +835,8 @@ export default function MainFiles(
           </section>
         )
         : null}
+
+      <ConfirmModal state={confirmModal.value} onClose={() => confirmModal.value = null} />
 
       {!fileShareId
         ? (

@@ -9,6 +9,8 @@ interface FilesBreadcrumbProps {
   sortOrder?: SortOrder;
 }
 
+const crumbClass = 'inline-flex min-h-11 items-center font-normal text-white hover:underline';
+
 export default function FilesBreadcrumb({
   path,
   isShowingNotes,
@@ -31,61 +33,43 @@ export default function FilesBreadcrumb({
     rootPath = '/Photos/';
   }
 
-  if (path === rootPath) {
-    return (
-      <h3 class='text-base font-semibold text-white whitespace-nowrap mr-2'>
-        All {itemPluralLabel}
-      </h3>
-    );
-  }
-
-  const pathParts = path.slice(1, -1).split('/');
-  const commonSearchParams = new URLSearchParams();
-  commonSearchParams.set('sortBy', sortBy);
-  commonSearchParams.set('sortOrder', sortOrder);
+  const commonSearchParams = new URLSearchParams({ sortBy, sortOrder });
+  const rootHref = `/${routePath}?path=${encodeURIComponent(rootPath)}&${commonSearchParams.toString()}`;
+  const pathParts = path === rootPath ? [] : path.slice(1, -1).split('/');
 
   return (
-    <h3 class='text-base font-semibold text-white whitespace-nowrap mr-2'>
-      {!isShowingNotes && !isShowingPhotos
-        ? <a href={`/${routePath}?path=/&${commonSearchParams.toString()}`}>All files</a>
-        : null}
-      {isShowingNotes ? <a href={`/notes?path=/Notes/&${commonSearchParams.toString()}`}>All notes</a> : null}
-      {isShowingPhotos ? <a href={`/photos?path=/Photos/&${commonSearchParams.toString()}`}>All photos</a> : null}
-      {pathParts.map((part, index) => {
-        // Ignore the first directory in special ones
-        if (index === 0 && (isShowingNotes || isShowingPhotos)) {
-          return null;
-        }
+    <nav aria-label='Breadcrumb' class='min-w-0'>
+      <ol class='flex items-center gap-1 overflow-x-auto whitespace-nowrap text-base font-semibold'>
+        <li>
+          {path === rootPath
+            ? <span class='inline-flex min-h-11 items-center text-white'>All {itemPluralLabel}</span>
+            : <a href={rootHref} class={crumbClass}>All {itemPluralLabel}</a>}
+        </li>
+        {pathParts.map((part, index) => {
+          // Notes and photos live under a fixed root directory, which the root crumb already stands for
+          if (index === 0 && (isShowingNotes || isShowingPhotos)) {
+            return null;
+          }
 
-        if (index === pathParts.length - 1) {
+          const isLastPart = index === pathParts.length - 1;
+          // The path arrives already decoded from the query string, so it's encoded exactly once on the way back out
+          const pathForPart = `/${pathParts.slice(0, index + 1).join('/')}/`;
+
           return (
-            <>
-              <span class='ml-2 text-xs'>/</span>
-              <span class='ml-2'>{decodeURIComponent(part)}</span>
-            </>
+            <li key={pathForPart} class='flex items-center gap-1'>
+              <span class='text-xs text-slate-400'>/</span>
+              {isLastPart ? <span class='inline-flex min-h-11 items-center text-white'>{part}</span> : (
+                <a
+                  href={`/${routePath}?path=${encodeURIComponent(pathForPart)}&${commonSearchParams.toString()}`}
+                  class={crumbClass}
+                >
+                  {part}
+                </a>
+              )}
+            </li>
           );
-        }
-
-        const fullPathForPart: string[] = [];
-
-        for (let pathPartIndex = 0; pathPartIndex <= index; ++pathPartIndex) {
-          fullPathForPart.push(pathParts[pathPartIndex]);
-        }
-
-        return (
-          <>
-            <span class='ml-2 text-xs'>/</span>
-            <a
-              href={`/${routePath}?path=/${
-                encodeURIComponent(fullPathForPart.join('/'))
-              }/&${commonSearchParams.toString()}`}
-              class='ml-2'
-            >
-              {decodeURIComponent(part)}
-            </a>
-          </>
-        );
-      })}
-    </h3>
+        })}
+      </ol>
+    </nav>
   );
 }

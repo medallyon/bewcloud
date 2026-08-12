@@ -1,129 +1,30 @@
-import { join } from '@std/path';
-import type { ComponentChildren } from 'preact';
-
 import { Directory, DirectoryFile } from '/lib/types.ts';
-import { humanFileSize, SortColumn, SortOrder, TRASH_PATH } from '/public/ts/utils/files.ts';
+import { humanFileSize, TRASH_PATH } from '/public/ts/utils/files.ts';
 
 interface ListFilesProps {
   directories: Directory[];
   files: DirectoryFile[];
-  chosenDirectories?: Pick<Directory, 'parent_path' | 'directory_name'>[];
-  chosenFiles?: Pick<DirectoryFile, 'parent_path' | 'file_name'>[];
-  onClickChooseFile?: (parentPath: string, name: string) => void;
-  onClickChooseDirectory?: (parentPath: string, name: string) => void;
-  onToggleChooseAll?: (shouldChoose: boolean) => void;
-  onClickOpenRenameDirectory?: (parentPath: string, name: string) => void;
-  onClickOpenRenameFile?: (parentPath: string, name: string) => void;
-  onClickOpenMoveDirectory?: (parentPath: string, name: string) => void;
-  onClickOpenMoveFile?: (parentPath: string, name: string) => void;
   onClickDeleteDirectory?: (parentPath: string, name: string) => Promise<void>;
   onClickDeleteFile?: (parentPath: string, name: string) => Promise<void>;
-  onClickCreateShare?: (filePath: string) => void;
-  onClickOpenManageShare?: (fileShareId: string) => void;
-  onClickDownloadDirectory?: (parentPath: string, name: string) => void;
   isShowingNotes?: boolean;
   isShowingPhotos?: boolean;
-  fileShareId?: string;
-  sortBy?: SortColumn;
-  sortOrder?: SortOrder;
-  onClickSort?: (column: SortColumn) => void;
 }
 
+// The plain listing used by notes and photos. Files has its own components (FilesList/FilesGrid) because sorting,
+// selection, renaming, moving, sharing and downloading are Files-only concerns that nothing here ever passed in.
 export default function ListFiles(
-  {
-    directories,
-    files,
-    chosenDirectories = [],
-    chosenFiles = [],
-    onClickChooseFile,
-    onClickChooseDirectory,
-    onToggleChooseAll,
-    onClickOpenRenameDirectory,
-    onClickOpenRenameFile,
-    onClickOpenMoveDirectory,
-    onClickOpenMoveFile,
-    onClickDeleteDirectory,
-    onClickDeleteFile,
-    onClickCreateShare,
-    onClickOpenManageShare,
-    onClickDownloadDirectory,
-    isShowingNotes,
-    isShowingPhotos,
-    fileShareId,
-    sortBy = 'name',
-    sortOrder = 'asc',
-    onClickSort,
-  }: ListFilesProps,
+  { directories, files, onClickDeleteDirectory, onClickDeleteFile, isShowingNotes, isShowingPhotos }: ListFilesProps,
 ) {
-  const dateFormatOptions: Intl.DateTimeFormatOptions = {
+  const dateFormat = new Intl.DateTimeFormat('en-GB', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
-  };
+  });
 
-  const dateFormat = new Intl.DateTimeFormat('en-GB', dateFormatOptions);
-
-  function renderSortIcon(column: SortColumn): ComponentChildren {
-    const isActive = sortBy === column;
-
-    if (isActive) {
-      return (
-        <img
-          src={sortOrder === 'asc' ? '/public/images/sort-up.svg' : '/public/images/sort-down.svg'}
-          class='white drop-shadow-md w-4 h-4'
-          width={16}
-          height={16}
-          alt={sortOrder === 'asc' ? 'Arrow pointing up' : 'Arrow pointing down'}
-          title={sortOrder === 'asc' ? 'Sort ascending' : 'Sort descending'}
-        />
-      );
-    } else {
-      return (
-        <img
-          src='/public/images/sort-none.svg'
-          class='white drop-shadow-md w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity'
-          width={16}
-          height={16}
-          alt='Two arrows side by side, one pointing up, the other pointing down'
-          title={`Sort by ${column} ascending`}
-        />
-      );
-    }
-  }
-
-  function renderSortableHeader(
-    label: string,
-    column: SortColumn,
-    extraClassName?: string,
-  ): ComponentChildren {
-    const isActive = sortBy === column;
-
-    if (!onClickSort) {
-      return <th scope='col' class={`px-6 py-4 font-medium text-white ${extraClassName || ''}`}>{label}</th>;
-    }
-
-    return (
-      <th scope='col' class={`px-6 py-4 font-medium text-white ${extraClassName || ''}`}>
-        <button
-          class={`group flex items-center justify-between w-full text-left hover:text-blue-300 ${
-            isActive ? 'text-blue-400' : ''
-          }`}
-          onClick={() => onClickSort(column)}
-          type='button'
-        >
-          <span>{label}</span>
-          <span class='ml-1'>
-            {renderSortIcon(column)}
-          </span>
-        </button>
-      </th>
-    );
-  }
-
-  let routePath = fileShareId ? `file-share/${fileShareId}` : 'files';
+  let routePath = 'files';
   let itemSingleLabel = 'file';
   let itemPluralLabel = 'files';
 
@@ -141,333 +42,125 @@ export default function ListFiles(
     return null;
   }
 
-  // .Trash is never selectable, so it doesn't count towards "all chosen"
-  const choosableDirectoriesCount =
-    directories.filter((directory) => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).length;
-  const chosenItemsCount = chosenDirectories.length + chosenFiles.length;
-  const areAllItemsChosen = chosenItemsCount > 0 &&
-    chosenItemsCount === choosableDirectoriesCount + files.length;
-  const areSomeItemsChosen = chosenItemsCount > 0 && !areAllItemsChosen;
-
   return (
-    <section class='mx-auto max-w-7xl my-8'>
-      <table class='w-full border-collapse bg-gray-900 text-left text-sm text-slate-500 shadow-sm rounded-md'>
-        <thead>
-          <tr class='border-b border-slate-600'>
-            {(directories.length === 0 && files.length === 0) ||
-                (typeof onClickChooseFile === 'undefined' && typeof onClickChooseDirectory === 'undefined') ||
-                fileShareId
-              ? null
-              : (
-                <th scope='col' class='pl-6 pr-2 font-medium text-white w-3'>
-                  <input
-                    class='w-3 h-3 cursor-pointer text-accent bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
-                    type='checkbox'
-                    ref={(element) => {
-                      if (element) {
-                        element.indeterminate = areSomeItemsChosen;
-                      }
-                    }}
-                    onClick={() => onToggleChooseAll?.(!areAllItemsChosen)}
-                    checked={areAllItemsChosen}
-                    title={areAllItemsChosen ? 'Deselect all' : 'Select all'}
-                  />
-                </th>
-              )}
-            {renderSortableHeader('Name', 'name')}
-            {renderSortableHeader('Last update', 'updated_at', 'w-64')}
-            {isShowingNotes || isShowingPhotos ? null : renderSortableHeader('Size', 'size_in_bytes', 'w-32')}
-            {isShowingPhotos || fileShareId
-              ? null
-              : <th scope='col' class='px-6 py-4 font-medium text-white w-24'></th>}
-          </tr>
-        </thead>
-        <tbody class='divide-y divide-slate-600 border-t border-slate-600'>
-          {directories.map((directory) => {
-            const fullPath = `${directory.parent_path}${directory.directory_name}/`;
+    <table class='w-full border-collapse overflow-hidden rounded-xl border border-slate-600 bg-slate-900 text-left text-sm text-slate-300'>
+      <thead>
+        <tr class='border-b border-slate-600'>
+          <th scope='col' class='px-4 py-3 font-medium text-white'>Name</th>
+          <th scope='col' class='hidden md:table-cell w-56 px-4 py-3 font-medium text-white'>Last update</th>
+          {isShowingNotes || isShowingPhotos
+            ? null
+            : <th scope='col' class='w-28 px-4 py-3 font-medium text-white'>Size</th>}
+          {isShowingPhotos ? null : <th scope='col' class='w-14 px-2 py-3'></th>}
+        </tr>
+      </thead>
+      <tbody class='divide-y divide-slate-600'>
+        {directories.map((directory) => {
+          const fullPath = `${directory.parent_path}${directory.directory_name}/`;
 
-            return (
-              <tr key={fullPath} class='bg-slate-700 hover:bg-slate-600 group'>
-                {typeof onClickChooseDirectory === 'undefined' || fileShareId ? null : (
-                  <td class='gap-3 pl-6 pr-2 py-4'>
-                    {fullPath === TRASH_PATH ? null : (
-                      <input
-                        class='w-3 h-3 cursor-pointer text-accent bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
-                        type='checkbox'
-                        onClick={() => onClickChooseDirectory(directory.parent_path, directory.directory_name)}
-                        checked={Boolean(chosenDirectories.find((_directory) =>
-                          _directory.parent_path === directory.parent_path &&
-                          _directory.directory_name === directory.directory_name
-                        ))}
-                      />
-                    )}
-                  </td>
-                )}
-                <td class='flex gap-3 px-6 py-4'>
-                  <a
-                    href={`/${routePath}?path=${encodeURIComponent(fullPath)}&sortBy=${sortBy}&sortOrder=${sortOrder}`}
-                    class='flex items-center font-normal text-white'
-                  >
-                    <img
-                      src={`/public/images/${fullPath === TRASH_PATH ? 'trash.svg' : 'directory.svg'}`}
-                      class='white drop-shadow-md mr-2'
-                      width={18}
-                      height={18}
-                      alt='Directory'
-                      title='Directory'
-                    />
-                    {directory.directory_name}
-                  </a>
-                </td>
-                <td class='px-6 py-4 text-slate-200'>
-                  {dateFormat.format(new Date(directory.updated_at))}
-                </td>
-                {isShowingNotes || isShowingPhotos ? null : (
-                  <td class='px-6 py-4 text-slate-200'>
-                    {humanFileSize(directory.size_in_bytes)}
-                  </td>
-                )}
-                {isShowingPhotos || fileShareId ? null : (
-                  <td class='px-6 py-4'>
-                    {(fullPath === TRASH_PATH || typeof onClickOpenRenameDirectory === 'undefined' ||
-                        typeof onClickOpenMoveDirectory === 'undefined')
-                      ? null
-                      : (
-                        <section class='flex items-center justify-end w-32'>
-                          {typeof onClickDownloadDirectory === 'undefined' ? null : (
-                            <span
-                              class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                              onClick={() => onClickDownloadDirectory(directory.parent_path, directory.directory_name)}
-                            >
-                              <img
-                                src='/public/images/download.svg'
-                                class='white drop-shadow-md'
-                                width={18}
-                                height={18}
-                                alt='Download directory as zip'
-                                title='Download directory as zip'
-                              />
-                            </span>
-                          )}
-                          <span
-                            class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                            onClick={() =>
-                              onClickOpenRenameDirectory(directory.parent_path, directory.directory_name)}
-                          >
-                            <img
-                              src='/public/images/rename.svg'
-                              class='white drop-shadow-md'
-                              width={18}
-                              height={18}
-                              alt='Rename directory'
-                              title='Rename directory'
-                            />
-                          </span>
-                          <span
-                            class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                            onClick={() => onClickOpenMoveDirectory(directory.parent_path, directory.directory_name)}
-                          >
-                            <img
-                              src='/public/images/move.svg'
-                              class='white drop-shadow-md'
-                              width={18}
-                              height={18}
-                              alt='Move directory'
-                              title='Move directory'
-                            />
-                          </span>
-                          {typeof onClickDeleteDirectory === 'undefined' ? null : (
-                            <span
-                              class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                              onClick={() => onClickDeleteDirectory(directory.parent_path, directory.directory_name)}
-                            >
-                              <img
-                                src='/public/images/delete.svg'
-                                class='red drop-shadow-md'
-                                width={20}
-                                height={20}
-                                alt='Delete directory'
-                                title='Delete directory'
-                              />
-                            </span>
-                          )}
-                          {typeof onClickCreateShare === 'undefined' || directory.file_share_id ? null : (
-                            <span
-                              class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                              onClick={() => onClickCreateShare(join(directory.parent_path, directory.directory_name))}
-                            >
-                              <img
-                                src='/public/images/share.svg'
-                                class='white drop-shadow-md'
-                                width={18}
-                                height={18}
-                                alt='Create public share link'
-                                title='Create public share link'
-                              />
-                            </span>
-                          )}
-                          {typeof onClickOpenManageShare === 'undefined' || !directory.file_share_id ? null : (
-                            <span
-                              class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                              onClick={() => onClickOpenManageShare(directory.file_share_id!)}
-                            >
-                              <img
-                                src='/public/images/share.svg'
-                                class='white drop-shadow-md'
-                                width={18}
-                                height={18}
-                                alt='Manage public share link'
-                                title='Manage public share link'
-                              />
-                            </span>
-                          )}
-                        </section>
-                      )}
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-          {files.map((file) => (
-            <tr key={`${file.parent_path}${file.file_name}`} class='bg-slate-700 hover:bg-slate-600 group'>
-              {typeof onClickChooseFile === 'undefined' || fileShareId ? null : (
-                <td class='gap-3 pl-6 pr-2 py-4'>
-                  <input
-                    class='w-3 h-3 cursor-pointer text-accent bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
-                    type='checkbox'
-                    onClick={() => onClickChooseFile(file.parent_path, file.file_name)}
-                    checked={Boolean(
-                      chosenFiles.find((_file) =>
-                        _file.parent_path === file.parent_path && _file.file_name === file.file_name
-                      ),
-                    )}
-                  />
-                </td>
-              )}
-              <td class='flex gap-3 px-6 py-4'>
+          return (
+            <tr key={fullPath} class='bg-slate-700 hover:bg-slate-600'>
+              <td class='px-4 py-3'>
                 <a
-                  href={`/${routePath}/open/${encodeURIComponent(file.file_name)}?path=${
-                    encodeURIComponent(file.parent_path)
-                  }`}
-                  class='flex items-center font-normal text-white'
-                  target='_blank'
-                  rel='noopener noreferrer'
+                  href={`/${routePath}?path=${encodeURIComponent(fullPath)}`}
+                  class='flex items-center gap-2 font-normal text-white'
                 >
                   <img
-                    src='/public/images/file.svg'
-                    class='white drop-shadow-md mr-2'
+                    src={`/public/images/${fullPath === TRASH_PATH ? 'trash' : 'directory'}.svg`}
+                    class='white shrink-0 drop-shadow-md'
                     width={18}
                     height={18}
-                    alt='File'
-                    title='File'
+                    alt='Directory'
+                    title='Directory'
                   />
-                  {file.file_name}
+                  <span class='break-all'>{directory.directory_name}</span>
                 </a>
               </td>
-              <td class='px-6 py-4 text-slate-200'>
-                {dateFormat.format(new Date(file.updated_at))}
-              </td>
-              {isShowingNotes ? null : (
-                <td class='px-6 py-4 text-slate-200'>
-                  {humanFileSize(file.size_in_bytes)}
-                </td>
-              )}
-              {isShowingPhotos || fileShareId ? null : (
-                <td class='px-6 py-4'>
-                  <section class='flex items-center justify-end w-24'>
-                    {typeof onClickOpenRenameFile === 'undefined' ? null : (
-                      <span
-                        class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                        onClick={() => onClickOpenRenameFile(file.parent_path, file.file_name)}
-                      >
-                        <img
-                          src='/public/images/rename.svg'
-                          class='white drop-shadow-md'
-                          width={18}
-                          height={18}
-                          alt={`Rename ${itemSingleLabel}`}
-                          title={`Rename ${itemSingleLabel}`}
-                        />
-                      </span>
-                    )}
-                    {typeof onClickOpenMoveFile === 'undefined' ? null : (
-                      <span
-                        class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                        onClick={() => onClickOpenMoveFile(file.parent_path, file.file_name)}
-                      >
-                        <img
-                          src='/public/images/move.svg'
-                          class='white drop-shadow-md'
-                          width={18}
-                          height={18}
-                          alt={`Move ${itemSingleLabel}`}
-                          title={`Move ${itemSingleLabel}`}
-                        />
-                      </span>
-                    )}
-                    {typeof onClickDeleteFile === 'undefined' ? null : (
-                      <span
-                        class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                        onClick={() => onClickDeleteFile(file.parent_path, file.file_name)}
+              <td class='hidden md:table-cell px-4 py-3'>{dateFormat.format(new Date(directory.updated_at))}</td>
+              {isShowingNotes || isShowingPhotos
+                ? null
+                : <td class='px-4 py-3'>{humanFileSize(directory.size_in_bytes)}</td>}
+              {isShowingPhotos ? null : (
+                <td class='px-2 py-3'>
+                  {onClickDeleteDirectory && fullPath !== TRASH_PATH
+                    ? (
+                      <button
+                        class='flex min-h-11 min-w-11 items-center justify-center rounded-lg opacity-70 hover:bg-slate-600 hover:opacity-100'
+                        type='button'
+                        onClick={() => onClickDeleteDirectory(directory.parent_path, directory.directory_name)}
                       >
                         <img
                           src='/public/images/delete.svg'
                           class='red drop-shadow-md'
                           width={20}
                           height={20}
-                          alt={`Delete ${itemSingleLabel}`}
-                          title={`Delete ${itemSingleLabel}`}
+                          alt='Delete directory'
+                          title='Delete directory'
                         />
-                      </span>
-                    )}
-                    {typeof onClickCreateShare === 'undefined' || file.file_share_id ? null : (
-                      <span
-                        class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                        onClick={() => onClickCreateShare(join(file.parent_path, file.file_name))}
-                      >
-                        <img
-                          src='/public/images/share.svg'
-                          class='white drop-shadow-md'
-                          width={18}
-                          height={18}
-                          alt='Create public share link'
-                          title='Create public share link'
-                        />
-                      </span>
-                    )}
-                    {typeof onClickOpenManageShare === 'undefined' || !file.file_share_id ? null : (
-                      <span
-                        class='invisible cursor-pointer group-hover:visible opacity-50 hover:opacity-100 mr-2'
-                        onClick={() => onClickOpenManageShare(file.file_share_id!)}
-                      >
-                        <img
-                          src='/public/images/share.svg'
-                          class='white drop-shadow-md'
-                          width={18}
-                          height={18}
-                          alt='Manage public share link'
-                          title='Manage public share link'
-                        />
-                      </span>
-                    )}
-                  </section>
+                      </button>
+                    )
+                    : null}
                 </td>
               )}
             </tr>
-          ))}
-          {directories.length === 0 && files.length === 0
-            ? (
-              <tr>
-                <td class='flex gap-3 px-6 py-4 font-normal' colspan={5}>
-                  <div class='text-md'>
-                    <div class='font-medium text-slate-400'>No {itemPluralLabel} to show</div>
-                  </div>
-                </td>
-              </tr>
-            )
-            : null}
-        </tbody>
-      </table>
-    </section>
+          );
+        })}
+        {files.map((file) => (
+          <tr key={`${file.parent_path}${file.file_name}`} class='bg-slate-700 hover:bg-slate-600'>
+            <td class='px-4 py-3'>
+              <a
+                href={`/${routePath}/open/${encodeURIComponent(file.file_name)}?path=${
+                  encodeURIComponent(file.parent_path)
+                }`}
+                class='flex items-center gap-2 font-normal text-white'
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                <img
+                  src='/public/images/file.svg'
+                  class='white shrink-0 drop-shadow-md'
+                  width={18}
+                  height={18}
+                  alt='File'
+                  title='File'
+                />
+                <span class='break-all'>{file.file_name}</span>
+              </a>
+            </td>
+            <td class='hidden md:table-cell px-4 py-3'>{dateFormat.format(new Date(file.updated_at))}</td>
+            {isShowingNotes ? null : <td class='px-4 py-3'>{humanFileSize(file.size_in_bytes)}</td>}
+            {isShowingPhotos ? null : (
+              <td class='px-2 py-3'>
+                {onClickDeleteFile
+                  ? (
+                    <button
+                      class='flex min-h-11 min-w-11 items-center justify-center rounded-lg opacity-70 hover:bg-slate-600 hover:opacity-100'
+                      type='button'
+                      onClick={() => onClickDeleteFile(file.parent_path, file.file_name)}
+                    >
+                      <img
+                        src='/public/images/delete.svg'
+                        class='red drop-shadow-md'
+                        width={20}
+                        height={20}
+                        alt={`Delete ${itemSingleLabel}`}
+                        title={`Delete ${itemSingleLabel}`}
+                      />
+                    </button>
+                  )
+                  : null}
+              </td>
+            )}
+          </tr>
+        ))}
+        {directories.length === 0 && files.length === 0
+          ? (
+            <tr>
+              <td class='px-4 py-6 font-normal text-slate-400' colspan={4}>No {itemPluralLabel} to show</td>
+            </tr>
+          )
+          : null}
+      </tbody>
+    </table>
   );
 }

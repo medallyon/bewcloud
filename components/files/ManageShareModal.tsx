@@ -9,7 +9,7 @@ interface ManageShareModalProps {
   isOpen: boolean;
   fileShareId: string;
   onClickSave: (fileShareId: string, password?: string) => Promise<void>;
-  onClickDelete: (fileShareId: string) => Promise<void>;
+  onClickDelete: (fileShareId: string) => void;
   onClose: () => void;
 }
 
