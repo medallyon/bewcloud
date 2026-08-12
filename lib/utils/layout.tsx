@@ -4,6 +4,7 @@ import denoConfig from '/deno.json' with { type: 'json' };
 import { RequestHandlerParams } from '/lib/page.ts';
 import { AppConfig } from '/lib/config.ts';
 import { escapeHtml, html } from '/public/ts/utils/misc.ts';
+import { DEFAULT_THEME_ID, isThemeId, THEME_COLORS } from '/public/ts/utils/theme.ts';
 
 import Header from '/components/Header.tsx';
 
@@ -30,19 +31,24 @@ async function basicLayout(
     title = `${titlePrefix} - bewCloud`;
   }
 
-  const headerReactNode = <Header route={currentPath} user={user} enabledApps={enabledApps} />;
+  // Rendered server-side, so there's no flash of the default theme before a saved one applies
+  const theme = isThemeId(user?.extra.theme) ? user.extra.theme : DEFAULT_THEME_ID;
+
+  const headerReactNode = <Header route={currentPath} user={user} enabledApps={enabledApps} theme={theme} />;
 
   const headerHtml = renderToString(headerReactNode);
 
   return html`
     <!DOCTYPE html>
-    <html lang="en" dir="ltr" class="h-full bg-slate-800">
+    <html lang="en" dir="ltr" class="h-full bg-slate-800" data-theme="${theme}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${escapeHtml(title)}</title>
         <meta name="description" content="${escapeHtml(description || defaultDescription)}">
         <meta name="author" content="Bruno Bernardino">
+        <!-- Overrides the manifest's static theme_color, so PWA chrome follows the chosen theme -->
+        <meta name="theme-color" content="${THEME_COLORS.get(theme)}">
         <meta property="og:title" content="${escapeHtml(defaultTitle)}" />
         <link rel="icon" href="/public/images/favicon-dark.png" type="image/png" />
         <link rel="apple-touch-icon" href="/public/images/favicon-dark.png" />
@@ -62,6 +68,31 @@ async function basicLayout(
           // Tell the upload service worker to abort its queue before navigating away, instead of letting it keep running against a session that's about to be gone.
           document.getElementById('logout-link')?.addEventListener('click', () => {
             navigator.serviceWorker?.controller?.postMessage({ type: 'ABORT_UPLOADS' });
+          });
+
+          // The themes are plain CSS variable overrides, so switching one is a single attribute write. Saving it is a background concern.
+          document.getElementById('theme-switch')?.addEventListener('click', async (event) => {
+            const theme = event.target.closest('[data-theme-id]')?.dataset.themeId;
+
+            if (!theme) {
+              return;
+            }
+
+            document.documentElement.dataset.theme = theme;
+            document.getElementById('theme-switch').open = false;
+
+            try {
+              const response = await fetch('/api/user/update-theme', {
+                method: 'POST',
+                body: JSON.stringify({ theme }),
+              });
+
+              if (!response.ok) {
+                throw new Error('Failed to save theme. ' + response.statusText);
+              }
+            } catch (error) {
+              console.error(error);
+            }
           });
         </script>
       </body>

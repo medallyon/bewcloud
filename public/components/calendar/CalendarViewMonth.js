@@ -69,7 +69,7 @@ export default function CalendarViewWeek({
       class: `relative ${day.isSameMonth ? 'bg-slate-600' : 'bg-slate-700'} min-h-16 px-3 py-2 ${day.isSameMonth ? '' : 'text-slate-100'} ${isBottomLeftDay ? 'rounded-bl-md' : ''} ${isBottomRightDay ? 'rounded-br-md' : ''}`
     }, h("time", {
       datetime: shortIsoDate,
-      class: `cursor-pointer ${isToday ? 'flex h-6 w-6 items-center justify-center rounded-full bg-[#51A4FB] font-semibold' : ''}`,
+      class: `cursor-pointer ${isToday ? 'flex h-6 w-6 items-center justify-center rounded-full bg-accent font-semibold' : ''}`,
       onClick: () => onClickAddEvent(new Date(`${shortIsoDate}T09:00`)),
       title: "Add a new event"
     }, day.date.getUTCDate()), dayEvents.length > 0 ? h("ol", {

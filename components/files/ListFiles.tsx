@@ -161,7 +161,7 @@ export default function ListFiles(
               : (
                 <th scope='col' class='pl-6 pr-2 font-medium text-white w-3'>
                   <input
-                    class='w-3 h-3 cursor-pointer text-[#51A4FB] bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
+                    class='w-3 h-3 cursor-pointer text-accent bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
                     type='checkbox'
                     ref={(element) => {
                       if (element) {
@@ -192,7 +192,7 @@ export default function ListFiles(
                   <td class='gap-3 pl-6 pr-2 py-4'>
                     {fullPath === TRASH_PATH ? null : (
                       <input
-                        class='w-3 h-3 cursor-pointer text-[#51A4FB] bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
+                        class='w-3 h-3 cursor-pointer text-accent bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
                         type='checkbox'
                         onClick={() => onClickChooseDirectory(directory.parent_path, directory.directory_name)}
                         checked={Boolean(chosenDirectories.find((_directory) =>
@@ -333,7 +333,7 @@ export default function ListFiles(
               {typeof onClickChooseFile === 'undefined' || fileShareId ? null : (
                 <td class='gap-3 pl-6 pr-2 py-4'>
                   <input
-                    class='w-3 h-3 cursor-pointer text-[#51A4FB] bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
+                    class='w-3 h-3 cursor-pointer text-accent bg-slate-100 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600'
                     type='checkbox'
                     onClick={() => onClickChooseFile(file.parent_path, file.file_name)}
                     checked={Boolean(

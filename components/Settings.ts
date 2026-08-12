@@ -3,6 +3,7 @@ import { convertObjectToFormData, currencyMap, escapeHtml, html } from '/public/
 import { SupportedCurrencySymbol, User } from '/lib/types.ts';
 import { getEnabledMultiFactorAuthMethodsFromUser } from '/public/ts/utils/multi-factor-auth.ts';
 import { getTimeZones } from '/public/ts/utils/calendar.ts';
+import { DEFAULT_THEME_ID, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
 import Loading from '/components/Loading.ts';
 
 interface SettingsProps {
@@ -17,6 +18,7 @@ interface SettingsProps {
   };
   currency?: SupportedCurrencySymbol;
   timezoneId?: string;
+  theme?: ThemeId;
   isExpensesAppEnabled: boolean;
   isMultiFactorAuthEnabled: boolean;
   isCalendarAppEnabled: boolean;
@@ -33,7 +35,8 @@ export type Action =
   | 'change-dav-password'
   | 'delete-account'
   | 'change-currency'
-  | 'change-timezone';
+  | 'change-timezone'
+  | 'change-theme';
 
 export const actionWords = new Map<Action, string>([
   ['change-email', 'change email'],
@@ -43,9 +46,16 @@ export const actionWords = new Map<Action, string>([
   ['delete-account', 'delete account'],
   ['change-currency', 'change currency'],
   ['change-timezone', 'change timezone'],
+  ['change-theme', 'change theme'],
 ]);
 
-function formFields(action: Action, formData: FormData, currency?: SupportedCurrencySymbol, timezoneId?: string) {
+function formFields(
+  action: Action,
+  formData: FormData,
+  currency?: SupportedCurrencySymbol,
+  timezoneId?: string,
+  theme?: ThemeId,
+) {
   const fields: FormField[] = [
     {
       name: 'action',
@@ -141,6 +151,18 @@ function formFields(action: Action, formData: FormData, currency?: SupportedCurr
       value: getFormDataField(formData, 'timezone') || timezoneId,
       required: true,
     });
+  } else if (action === 'change-theme') {
+    fields.push({
+      name: 'theme',
+      label: 'Theme',
+      type: 'select',
+      options: THEME_IDS.map((themeId) => ({
+        value: themeId,
+        label: THEME_LABELS.get(themeId)!,
+      })),
+      value: getFormDataField(formData, 'theme') || theme || DEFAULT_THEME_ID,
+      required: true,
+    });
   }
   return fields;
 }
@@ -152,6 +174,7 @@ export default function Settings(
     notice,
     currency,
     timezoneId,
+    theme,
     isExpensesAppEnabled,
     isMultiFactorAuthEnabled,
     isCalendarAppEnabled,
@@ -185,6 +208,20 @@ export default function Settings(
           </section>
         `
         : ''}
+
+      <h2 class="text-2xl mb-4 text-left px-4 max-w-3xl mx-auto lg:min-w-96">Change your theme</h2>
+      <p class="text-left mt-2 mb-6 px-4 max-w-3xl mx-auto lg:min-w-96">
+        The theme applies everywhere you're signed in. The preview below updates as soon as you pick one.
+      </p>
+
+      <form method="POST" class="mb-12" id="change-theme-form">
+        ${formFields('change-theme', formData, currency, timezoneId, theme).map((field) =>
+          generateFieldHtml(field, formData)
+        ).join('')}
+        <section class="flex justify-end mt-8 mb-4">
+          <button class="button-secondary" type="submit">Change theme</button>
+        </section>
+      </form>
 
       <h2 class="text-2xl mb-4 text-left px-4 max-w-3xl mx-auto lg:min-w-96">Change your email</h2>
 
@@ -277,6 +314,13 @@ export default function Settings(
         </section>
       </form>
     </section>
+
+    <script>
+    // Recolour the page as soon as a theme is picked, so the select is its own preview. Submitting the form persists it.
+    document.getElementById('change-theme-form')?.querySelector('[name="theme"]')?.addEventListener('change', (event) => {
+      document.documentElement.dataset.theme = event.target.value;
+    });
+    </script>
 
     <script type="module">
     import { h, render } from 'preact';

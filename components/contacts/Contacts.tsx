@@ -451,7 +451,7 @@ export default function Contacts(
             </div>
           </section>
           <button
-            class='inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2'
+            class='inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2'
             type='button'
             title='Add new contact'
             onClick={() => onClickAddContact()}
@@ -573,7 +573,7 @@ export default function Contacts(
                     href={`/contacts?search=${search}&page=${pageNumber}&addressBookId=${selectedAddressBookId.value}`}
                     aria-current='page'
                     class={`relative inline-flex items-center ${
-                      isCurrent ? 'bg-[#51A4FB] hover:bg-sky-400' : 'bg-slate-700 hover:bg-slate-600'
+                      isCurrent ? 'bg-accent hover:bg-accent-hover' : 'bg-slate-700 hover:bg-slate-600'
                     } px-4 py-2 text-sm font-semibold text-white`}
                   >
                     {pageNumber}

@@ -7,6 +7,7 @@ import { getFormDataField } from '/public/ts/utils/form.ts';
 import { EmailModel } from '/lib/models/email.ts';
 import { AppConfig } from '/lib/config.ts';
 import { getTimeZones } from '/public/ts/utils/calendar.ts';
+import { DEFAULT_THEME_ID, isThemeId, ThemeId } from '/public/ts/utils/theme.ts';
 import { basicLayoutResponse } from '/lib/utils/layout.tsx';
 import Settings, { Action, actionWords } from '/components/Settings.ts';
 
@@ -22,6 +23,7 @@ async function get({ request, user, match, session, isRunningLocally }: RequestH
     formData: {},
     currency: user!.extra.expenses_currency,
     timezoneId: user!.extra.timezone?.id || 'UTC',
+    theme: user!.extra.theme,
     isExpensesAppEnabled,
     helpEmail,
     isMultiFactorAuthEnabled,
@@ -201,6 +203,19 @@ async function post({ request, user, match, session, isRunningLocally }: Request
 
       successTitle = 'Timezone changed!';
       successMessage = 'Timezone changed successfully.';
+    } else if (action === 'change-theme') {
+      const newTheme = getFormDataField(formData, 'theme');
+
+      if (!isThemeId(newTheme)) {
+        throw new Error(`Invalid theme.`);
+      }
+
+      user!.extra.theme = newTheme;
+
+      await UserModel.update(user!);
+
+      successTitle = 'Theme changed!';
+      successMessage = 'Theme changed successfully.';
     }
 
     const notice = successTitle
@@ -215,6 +230,7 @@ async function post({ request, user, match, session, isRunningLocally }: Request
       formData: convertFormDataToObject(formData),
       currency: user!.extra.expenses_currency,
       timezoneId: user!.extra.timezone?.id || 'UTC',
+      theme: user!.extra.theme,
       isExpensesAppEnabled,
       helpEmail,
       isMultiFactorAuthEnabled,
@@ -241,6 +257,7 @@ async function post({ request, user, match, session, isRunningLocally }: Request
       formData: convertFormDataToObject(formData),
       currency: user!.extra.expenses_currency,
       timezoneId: user!.extra.timezone?.id || 'UTC',
+      theme: user!.extra.theme,
       isExpensesAppEnabled,
       helpEmail,
       isMultiFactorAuthEnabled,
@@ -266,6 +283,7 @@ function defaultHtmlContent({
   notice,
   currency,
   timezoneId,
+  theme,
   isExpensesAppEnabled,
   isMultiFactorAuthEnabled,
   isCalendarAppEnabled,
@@ -277,6 +295,7 @@ function defaultHtmlContent({
   notice?: { title: string; message: string };
   currency?: SupportedCurrencySymbol;
   timezoneId?: string;
+  theme?: ThemeId;
   isExpensesAppEnabled: boolean;
   isMultiFactorAuthEnabled: boolean;
   isCalendarAppEnabled: boolean;
@@ -289,6 +308,7 @@ function defaultHtmlContent({
     notice,
     currency,
     timezoneId,
+    theme: theme || DEFAULT_THEME_ID,
     isExpensesAppEnabled,
     isMultiFactorAuthEnabled,
     isCalendarAppEnabled,

@@ -350,7 +350,7 @@ export default function MainPhotos(
       {/* Drag and drop overlay */}
       {isDraggingOver.value && (
         <div class='fixed inset-0 z-50 bg-black/50 flex items-center justify-center'>
-          <div class='bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center'>
+          <div class='bg-accent text-on-color p-8 rounded-lg border-2 border-dashed border-on-color max-w-md text-center'>
             <img
               src='/public/images/add.svg'
               alt='Upload'
@@ -371,7 +371,7 @@ export default function MainPhotos(
           <section class='relative inline-block text-left ml-2'>
             <div>
               <button
-                class='inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2'
+                class='inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2'
                 type='button'
                 title='Add new file or directory'
                 id='new-button'
@@ -470,30 +470,30 @@ export default function MainPhotos(
       {fileConflictModal.value?.isOpen
         ? (
           <div class='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-            <div class='bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl'>
-              <h3 class='text-lg font-semibold mb-4 text-gray-900'>File Already Exists</h3>
-              <p class='text-gray-600 mb-6'>
-                The file <strong class='text-gray-900'>{fileConflictModal.value.existingFileName}</strong>{' '}
+            <div class='bg-slate-900 text-slate-100 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl'>
+              <h3 class='text-lg font-semibold mb-4 text-slate-100'>File Already Exists</h3>
+              <p class='text-slate-300 mb-6'>
+                The file <strong class='text-slate-100'>{fileConflictModal.value.existingFileName}</strong>{' '}
                 already exists in this location. What would you like to do?
               </p>
               <div class='flex flex-col sm:flex-row gap-3'>
                 <button
                   onClick={fileConflictModal.value.onReplace}
-                  class='flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors'
+                  class='flex-1 bg-blue-600 text-on-color px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors'
                   type='button'
                 >
                   Replace
                 </button>
                 <button
                   onClick={fileConflictModal.value.onSkip}
-                  class='flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors'
+                  class='flex-1 bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors'
                   type='button'
                 >
                   Skip
                 </button>
                 <button
                   onClick={fileConflictModal.value.onReplaceAll}
-                  class='flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors'
+                  class='flex-1 bg-red-600 text-on-color px-4 py-2 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors'
                   type='button'
                 >
                   Replace All

@@ -1,10 +1,12 @@
 import { OptionalApp, User } from '/lib/types.ts';
 import { capitalizeWord } from '/public/ts/utils/misc.ts';
+import { DEFAULT_THEME_ID, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
 
 interface Data {
   route: string;
   user?: User | null;
   enabledApps: OptionalApp[];
+  theme?: ThemeId;
 }
 
 interface MenuItem {
@@ -12,7 +14,7 @@ interface MenuItem {
   label: string;
 }
 
-export default function Header({ route, user, enabledApps }: Data) {
+export default function Header({ route, user, enabledApps, theme = DEFAULT_THEME_ID }: Data) {
   const activeClass = 'bg-slate-800 text-white rounded-md px-3 py-2 text-sm font-medium';
   const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-md px-3 py-2 text-sm font-medium';
 
@@ -90,6 +92,34 @@ export default function Header({ route, user, enabledApps }: Data) {
               <div class='ml-4 flex items-center md:ml-6'>
                 <div class='ml-10 flex items-center space-x-4'>
                   <span class='mx-2 text-white text-sm'>{user.email}</span>
+                  <details class='relative' id='theme-switch'>
+                    <summary class={`${defaultClass} list-none`} title='Change theme'>
+                      <img
+                        src='/public/images/theme.svg'
+                        alt='Theme'
+                        title='Change theme'
+                        width={iconWidthAndHeightInPixels}
+                        height={iconWidthAndHeightInPixels}
+                        class='white'
+                      />
+                    </summary>
+                    <div class='absolute right-0 z-20 mt-2 w-56 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15'>
+                      <div class='py-1'>
+                        {THEME_IDS.map((themeId) => (
+                          <button
+                            key={themeId}
+                            type='button'
+                            data-theme-id={themeId}
+                            class={`block w-full px-4 py-2 text-left text-sm hover:bg-slate-600 ${
+                              themeId === theme ? 'text-accent font-semibold' : 'text-white'
+                            }`}
+                          >
+                            {THEME_LABELS.get(themeId)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </details>
                   <a
                     href='/settings'
                     class={route.startsWith('/settings') ? activeClass : defaultClass}

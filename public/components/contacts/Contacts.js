@@ -334,7 +334,7 @@ export default function Contacts({
     class: `text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`,
     onClick: () => onClickExportVCard()
   }, "Export vCard")))), h("button", {
-    class: "inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2",
+    class: "inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2",
     type: "button",
     title: "Add new contact",
     onClick: () => onClickAddContact()
@@ -428,7 +428,7 @@ export default function Contacts({
     return h("a", {
       href: `/contacts?search=${search}&page=${pageNumber}&addressBookId=${selectedAddressBookId.value}`,
       "aria-current": "page",
-      class: `relative inline-flex items-center ${isCurrent ? 'bg-[#51A4FB] hover:bg-sky-400' : 'bg-slate-700 hover:bg-slate-600'} px-4 py-2 text-sm font-semibold text-white`
+      class: `relative inline-flex items-center ${isCurrent ? 'bg-accent hover:bg-accent-hover' : 'bg-slate-700 hover:bg-slate-600'} px-4 py-2 text-sm font-semibold text-white`
     }, pageNumber);
   }), h("a", {
     href: page < pagesCount ? `/contacts?search=${search}&page=${page + 1}&addressBookId=${selectedAddressBookId.value}` : 'javascript:void(0)',

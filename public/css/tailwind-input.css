@@ -1,9 +1,180 @@
 @import 'tailwindcss';
 
+@theme {
+  --color-accent: #51a4fb;
+  --color-accent-hover: oklch(74.6% 0.16 232.661);
+  /* Foreground for saturated backgrounds (accent buttons, delete buttons, calendar chips) — stays near-white in every theme, including the light ones */
+  --color-on-color: #fff;
+}
+
+/*
+ * Themes work by overriding Tailwind's own --color-* variables, which its utilities reference (e.g. .bg-slate-800 { background-color: var(--color-slate-800) }).
+ * That re-themes every colour utility in the app at once, with no per-component sweep. Only neutrals + white are remapped, never chromatic colours.
+ * The app's convention is "high step = background, low step = foreground", so a light theme simply reverses the ramp's lightness.
+ * The default theme (bewcloud) declares nothing but its colour scheme: no overrides means Tailwind's built-ins, which is exactly today's look.
+ */
+html[data-theme='bewcloud'] {
+  color-scheme: dark;
+}
+
+html[data-theme='nord'] {
+  color-scheme: dark;
+
+  --color-slate-950: #242933; /* chrome */
+  --color-slate-900: #2e3440; /* cards */
+  --color-slate-800: #3b4252; /* page */
+  --color-slate-700: #434c5e; /* rows */
+  --color-slate-600: #4c566a; /* borders, secondary buttons */
+  --color-slate-500: #5e6779; /* muted borders */
+  --color-slate-400: #8a93a5; /* muted text */
+  --color-slate-300: #d8dee9; /* secondary text */
+  --color-slate-200: #e5e9f0; /* text */
+  --color-slate-100: #eceff4; /* strong text */
+  --color-slate-50: #f5f7fa; /* strongest text */
+
+  --color-gray-900: #292e39; /* chrome */
+  --color-gray-700: #434c5e; /* rows */
+  --color-gray-600: #4c566a; /* borders */
+  --color-gray-500: #5e6779; /* muted borders */
+  --color-gray-400: #8a93a5; /* muted text */
+  --color-gray-300: #d8dee9; /* secondary text */
+  --color-gray-200: #e5e9f0; /* text */
+
+  --color-white: #eceff4;
+
+  --color-accent: #88c0d0;
+  --color-accent-hover: #8fbcbb;
+}
+
+html[data-theme='dracula'] {
+  color-scheme: dark;
+
+  --color-slate-950: #191a21; /* chrome */
+  --color-slate-900: #21222c; /* cards */
+  --color-slate-800: #282a36; /* page */
+  --color-slate-700: #343746; /* rows */
+  --color-slate-600: #44475a; /* borders, secondary buttons */
+  --color-slate-500: #565a71; /* muted borders */
+  --color-slate-400: #6272a4; /* muted text */
+  --color-slate-300: #c8c9d4; /* secondary text */
+  --color-slate-200: #e4e4e8; /* text */
+  --color-slate-100: #f8f8f2; /* strong text */
+  --color-slate-50: #fff; /* strongest text */
+
+  --color-gray-900: #21222c; /* chrome */
+  --color-gray-700: #343746; /* rows */
+  --color-gray-600: #44475a; /* borders */
+  --color-gray-500: #565a71; /* muted borders */
+  --color-gray-400: #6272a4; /* muted text */
+  --color-gray-300: #c8c9d4; /* secondary text */
+  --color-gray-200: #e4e4e8; /* text */
+
+  --color-white: #f8f8f2;
+
+  --color-accent: #bd93f9;
+  --color-accent-hover: #ff79c6;
+}
+
+html[data-theme='catppuccin-latte'] {
+  color-scheme: light;
+  /* Source SVGs are already black, so the invert chain that makes them white must be switched off */
+  --icon-filter: none;
+
+  --color-slate-950: #dce0e8; /* chrome */
+  --color-slate-900: #e6e9ef; /* cards */
+  --color-slate-800: #eff1f5; /* page */
+  --color-slate-700: #fff; /* rows */
+  --color-slate-600: #ccd0da; /* borders, secondary buttons */
+  --color-slate-500: #bcc0cc; /* muted borders */
+  --color-slate-400: #8c8fa1; /* muted text */
+  --color-slate-300: #6c6f85; /* secondary text */
+  --color-slate-200: #5c5f77; /* text */
+  --color-slate-100: #4c4f69; /* strong text */
+  --color-slate-50: #3e4058; /* strongest text */
+
+  --color-gray-900: #e6e9ef; /* chrome */
+  --color-gray-700: #dce0e8; /* rows */
+  --color-gray-600: #ccd0da; /* borders */
+  --color-gray-500: #9ca0b0; /* muted borders */
+  --color-gray-400: #8c8fa1; /* muted text */
+  --color-gray-300: #6c6f85; /* secondary text */
+  --color-gray-200: #5c5f77; /* text */
+
+  --color-white: #4c4f69;
+
+  --color-accent: #1e66f5;
+  --color-accent-hover: #7287fd;
+}
+
+html[data-theme='daylight'] {
+  color-scheme: light;
+  /* Source SVGs are already black, so the invert chain that makes them white must be switched off */
+  --icon-filter: none;
+
+  --color-slate-950: #e8dcc3; /* chrome */
+  --color-slate-900: #f2ead8; /* cards */
+  --color-slate-800: #f7f2e7; /* page */
+  --color-slate-700: #fffdf7; /* rows */
+  --color-slate-600: #dcd0b6; /* borders, secondary buttons */
+  --color-slate-500: #b9ac90; /* muted borders */
+  --color-slate-400: #8c8267; /* muted text */
+  --color-slate-300: #6b6250; /* secondary text */
+  --color-slate-200: #574f40; /* text */
+  --color-slate-100: #423c31; /* strong text */
+  --color-slate-50: #2e2a22; /* strongest text */
+
+  --color-gray-900: #f2ead8; /* chrome */
+  --color-gray-700: #e8dcc3; /* rows */
+  --color-gray-600: #dcd0b6; /* borders */
+  --color-gray-500: #a89a7d; /* muted borders */
+  --color-gray-400: #8c8267; /* muted text */
+  --color-gray-300: #6b6250; /* secondary text */
+  --color-gray-200: #574f40; /* text */
+
+  --color-white: #3d372d;
+
+  --color-accent: #b5651d;
+  --color-accent-hover: #cf7c2f;
+}
+
+html[data-theme='ember'] {
+  color-scheme: dark;
+
+  --color-slate-950: #1c1613; /* chrome */
+  --color-slate-900: #241c17; /* cards */
+  --color-slate-800: #2b211b; /* page */
+  --color-slate-700: #382b22; /* rows */
+  --color-slate-600: #4a392d; /* borders, secondary buttons */
+  --color-slate-500: #64503f; /* muted borders */
+  --color-slate-400: #9c8878; /* muted text */
+  --color-slate-300: #d6c6b6; /* secondary text */
+  --color-slate-200: #e7dcd1; /* text */
+  --color-slate-100: #f5eee7; /* strong text */
+  --color-slate-50: #fbf7f3; /* strongest text */
+
+  --color-gray-900: #241c17; /* chrome */
+  --color-gray-700: #382b22; /* rows */
+  --color-gray-600: #4a392d; /* borders */
+  --color-gray-500: #64503f; /* muted borders */
+  --color-gray-400: #9c8878; /* muted text */
+  --color-gray-300: #d6c6b6; /* secondary text */
+  --color-gray-200: #e7dcd1; /* text */
+
+  --color-white: #f7f1ea;
+
+  --color-accent: #e8823c;
+  --color-accent-hover: #f2a063;
+}
+
 @layer base {
   html {
-    /* This is needed to ensure that the system color scheme is dark and matches the dark theme of the app */
-    color-scheme: dark;
+    /* Dark themes invert the black source SVGs to white; light themes set this to none */
+    --icon-filter: invert(100%) sepia(0%) saturate(7500%) hue-rotate(42deg) brightness(99%) contrast(112%);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 
   h1 {
@@ -11,7 +182,7 @@
   }
 
   a {
-    @apply text-[#51a4fb] no-underline hover:underline font-semibold cursor-pointer;
+    @apply text-accent no-underline hover:underline font-semibold cursor-pointer;
   }
 
   main {
@@ -29,7 +200,7 @@
 
 @layer components {
   .button {
-    @apply inline-block rounded text-white no-underline font-normal bg-[#51a4fb] hover:bg-sky-400 hover:shadow-sm
+    @apply inline-block rounded text-on-color no-underline font-normal bg-accent hover:bg-accent-hover hover:shadow-sm
       hover:no-underline px-4 py-2 cursor-pointer;
   }
 
@@ -39,12 +210,12 @@
   }
 
   .button-danger {
-    @apply inline-block rounded text-slate-50 no-underline font-normal bg-red-600 hover:text-slate-900 hover:bg-red-400
+    @apply inline-block rounded text-on-color no-underline font-normal bg-red-600 hover:text-slate-900 hover:bg-red-400
       hover:shadow-md hover:no-underline px-4 py-2 cursor-pointer;
   }
 
   .input-field {
-    @apply block w-full p-2 rounded-md text-white bg-slate-700 border-transparent border focus:border-[#51a4fb]
+    @apply block w-full p-2 rounded-md text-white bg-slate-700 border-transparent border focus:border-accent
       focus:bg-slate-700 outline-none focus:ring-0 shadow-sm;
   }
 
@@ -57,18 +228,18 @@
   }
 
   .notification-error {
-    @apply bg-red-700 rounded text-white px-6 py-8 shadow-md mt-2 mb-6 w-full hover:shadow-lg;
+    @apply bg-red-700 rounded text-on-color px-6 py-8 shadow-md mt-2 mb-6 w-full hover:shadow-lg;
   }
 
   .notification-error h3 {
-    @apply text-4xl text-white mb-6;
+    @apply text-4xl text-on-color mb-6;
   }
 
   .notification-success {
-    @apply bg-green-600 rounded text-white px-6 py-8 shadow-md mt-2 mb-6 w-full hover:shadow-lg;
+    @apply bg-green-600 rounded text-on-color px-6 py-8 shadow-md mt-2 mb-6 w-full hover:shadow-lg;
   }
 
   .notification-success h3 {
-    @apply text-4xl text-white mb-6;
+    @apply text-4xl text-on-color mb-6;
   }
 }

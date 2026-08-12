@@ -106,7 +106,7 @@ export default function ManageShareModal(
             Update
           </button>
           <button
-            class='px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md'
+            class='px-5 py-2 bg-red-600 hover:bg-red-500 text-on-color cursor-pointer rounded-md'
             onClick={() => onClickDelete(fileShareId)}
             type='button'
           >

@@ -1,3 +1,5 @@
+import type { ThemeId } from '/public/ts/utils/theme.ts';
+
 export interface User {
   id: string;
   email: string;
@@ -23,6 +25,7 @@ export interface User {
       sort_by: string;
       sort_order: string;
     };
+    theme?: ThemeId;
   };
   created_at: Date;
 }

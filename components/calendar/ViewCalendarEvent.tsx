@@ -177,7 +177,7 @@ export default function ViewCalendarEvent(
         <a href='/calendar' class='mr-2'>View calendar</a>
         <section class='flex items-center'>
           <button
-            class='inline-block justify-center gap-x-1.5 rounded-md bg-red-800 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-600 ml-2'
+            class='inline-block justify-center gap-x-1.5 rounded-md bg-red-800 px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-red-600 ml-2'
             type='button'
             title='Delete event'
             onClick={() => onClickDeleteEvent()}
