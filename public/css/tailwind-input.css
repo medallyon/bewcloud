@@ -360,6 +360,17 @@
     background-attachment: fixed;
   }
 
+  /* The settings previews paint the same two gradients, minus the fixed attachment: anchored to the viewport, a tile would only show a thumbnail-sized slice of the sheet instead of the whole ramp. */
+  .theme-preview-chrome {
+    @apply bg-slate-950;
+    background-image: var(--theme-chrome-gradient, none);
+  }
+
+  .theme-preview-page {
+    @apply bg-slate-800;
+    background-image: var(--theme-page-gradient, none);
+  }
+
   .button {
     @apply inline-block rounded text-on-color no-underline font-normal bg-accent hover:bg-accent-hover hover:shadow-sm
       hover:no-underline px-4 py-2 cursor-pointer;

@@ -1,17 +1,19 @@
-export const THEME_IDS = [
-  'bewcloud',
-  'tide',
-  'aurora',
-  'citron',
-  'paper',
-  'nord',
-  'dracula',
-  'catppuccin-latte',
-  'daylight',
-  'ember',
+// Grouped by how each theme paints its chrome and page, which is also how the settings picker lays them out
+export const THEME_GROUPS = [
+  {
+    label: 'Gradient',
+    themeIds: ['tide', 'aurora', 'citron', 'paper'],
+  },
+  {
+    label: 'Flat',
+    themeIds: ['bewcloud', 'nord', 'dracula', 'catppuccin-latte', 'daylight', 'ember'],
+  },
 ] as const;
 
-export type ThemeId = (typeof THEME_IDS)[number];
+export type ThemeId = (typeof THEME_GROUPS)[number]['themeIds'][number];
+
+// Derived from the groups so a new theme only has to be added in one place to be both valid and offered
+export const THEME_IDS: readonly ThemeId[] = THEME_GROUPS.flatMap((group) => group.themeIds);
 
 export const DEFAULT_THEME_ID: ThemeId = 'bewcloud';
 

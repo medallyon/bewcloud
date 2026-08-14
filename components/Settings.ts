@@ -3,7 +3,14 @@ import { convertObjectToFormData, currencyMap, escapeHtml, html } from '/public/
 import { SupportedCurrencySymbol, User } from '/lib/types.ts';
 import { getEnabledMultiFactorAuthMethodsFromUser } from '/public/ts/utils/multi-factor-auth.ts';
 import { getTimeZones } from '/public/ts/utils/calendar.ts';
-import { DEFAULT_THEME_ID, THEME_COLORS, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
+import {
+  DEFAULT_THEME_ID,
+  isThemeId,
+  THEME_COLORS,
+  THEME_GROUPS,
+  THEME_LABELS,
+  ThemeId,
+} from '/public/ts/utils/theme.ts';
 import Loading from '/components/Loading.ts';
 
 interface SettingsProps {
@@ -164,6 +171,36 @@ function formFields(
   return fields;
 }
 
+// The tile carries data-theme, so its surfaces render in the theme they're previewing instead of duplicating that palette here
+function themePreviewTile(themeId: ThemeId, selectedTheme: ThemeId) {
+  return html`
+    <button
+      type="button"
+      data-theme="${themeId}"
+      data-theme-color="${THEME_COLORS.get(themeId)}"
+      aria-current="${themeId === selectedTheme ? 'true' : 'false'}"
+      title="Preview the ${THEME_LABELS.get(themeId)} theme"
+      class="flex aspect-5/4 w-full flex-col gap-2 rounded-xl border border-slate-600 bg-slate-800 p-2 text-left
+        ring-accent aria-current:ring-2"
+    >
+      <span class="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-600">
+        <span class="flex h-3 items-center justify-end px-1 theme-preview-chrome">
+          <span class="h-1.5 w-1.5 rounded-full bg-accent"></span>
+        </span>
+        <span class="flex flex-1">
+          <span class="w-1/4 theme-preview-chrome"></span>
+          <span class="flex flex-1 flex-col gap-1 p-1 theme-preview-page">
+            <span class="h-1.5 rounded bg-slate-700"></span>
+            <span class="h-1.5 rounded bg-slate-700"></span>
+            <span class="h-1.5 w-2/3 rounded bg-slate-700"></span>
+          </span>
+        </span>
+      </span>
+      <span class="truncate text-xs font-semibold text-white">${THEME_LABELS.get(themeId)}</span>
+    </button>
+  `;
+}
+
 export default function Settings(
   {
     formData: formDataObject,
@@ -183,7 +220,8 @@ export default function Settings(
 
   const multiFactorAuthMethods = getEnabledMultiFactorAuthMethodsFromUser(user);
 
-  const selectedTheme = getFormDataField(formData, 'theme') || theme || DEFAULT_THEME_ID;
+  const submittedTheme = getFormDataField(formData, 'theme');
+  const selectedTheme: ThemeId = isThemeId(submittedTheme) ? submittedTheme : theme || DEFAULT_THEME_ID;
 
   const emailFormAction: Action = notice?.title === 'Verify your email!' ||
       (getFormDataField(formData, 'action') === 'verify-change-email' && notice?.title !== 'Email updated!')
@@ -217,37 +255,15 @@ export default function Settings(
         ${formFields('change-theme', formData, currency, timezoneId, theme).map((field) =>
           generateFieldHtml(field, formData)
         ).join('')}
-        <div class="grid grid-cols-2 gap-4 px-4 max-w-3xl mx-auto sm:grid-cols-3 lg:min-w-96">
-          ${THEME_IDS.map((themeId) =>
-            html`
-              <button
-                type="button"
-                data-theme="${themeId}"
-                data-theme-color="${THEME_COLORS.get(themeId)}"
-                aria-current="${themeId === selectedTheme ? 'true' : 'false'}"
-                title="Preview the ${THEME_LABELS.get(themeId)} theme"
-                class="flex aspect-5/4 w-full flex-col gap-2 rounded-xl border border-slate-600 bg-slate-800 p-2 text-left
-                  ring-accent aria-current:ring-2"
-              >
-                <!-- The tile carries data-theme, so these surfaces render in the theme they're previewing instead of duplicating its palette here -->
-                <span class="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-600">
-                  <span class="flex h-3 items-center justify-end px-1 bg-slate-950">
-                    <span class="h-1.5 w-1.5 rounded-full bg-accent"></span>
-                  </span>
-                  <span class="flex flex-1">
-                    <span class="w-1/4 bg-slate-900"></span>
-                    <span class="flex flex-1 flex-col gap-1 p-1 bg-slate-800">
-                      <span class="h-1.5 rounded bg-slate-700"></span>
-                      <span class="h-1.5 rounded bg-slate-700"></span>
-                      <span class="h-1.5 w-2/3 rounded bg-slate-700"></span>
-                    </span>
-                  </span>
-                </span>
-                <span class="truncate text-xs font-semibold text-white">${THEME_LABELS.get(themeId)}</span>
-              </button>
-            `
-          ).join('')}
-        </div>
+        ${THEME_GROUPS.map((group) =>
+          html`
+            <h3 class="mb-3 px-4 max-w-3xl mx-auto text-sm font-semibold uppercase tracking-wide text-slate-300
+              lg:min-w-96">${group.label}</h3>
+            <div class="grid grid-cols-2 gap-4 mb-8 px-4 max-w-3xl mx-auto sm:grid-cols-4 lg:min-w-96">
+              ${group.themeIds.map((themeId) => themePreviewTile(themeId, selectedTheme)).join('')}
+            </div>
+          `
+        ).join('')}
         <section class="flex justify-end mt-8 mb-4 px-4 max-w-3xl mx-auto lg:min-w-96">
           <button class="button" type="submit">Apply</button>
         </section>
