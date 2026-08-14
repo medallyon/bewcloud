@@ -57,7 +57,6 @@
     --color-gray-600: oklch(44.6% 0.03 256.802);
     --color-gray-700: oklch(37.3% 0.034 259.733);
     --color-gray-900: oklch(21% 0.034 264.665);
-    --color-zinc-700: oklch(37% 0.013 285.805);
     --color-black: #000;
     --color-white: #fff;
     --spacing: 0.25rem;
@@ -1520,6 +1519,9 @@
     }
     .hover\:text-blue-300:hover {
       color: var(--color-blue-300);
+    }
+    .hover\:text-on-color:hover {
+      color: var(--color-on-color);
     }
     .hover\:text-sky-400:hover {
       color: var(--color-sky-400);

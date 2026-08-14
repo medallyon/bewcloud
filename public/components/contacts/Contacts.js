@@ -297,7 +297,7 @@ export default function Contacts({
     onClick: () => onClickAddAddressBook()
   }, "New Address Book"), h("button", {
     type: "button",
-    class: `text-white block px-4 py-2 text-sm w-full text-left hover:bg-red-600`,
+    class: `text-white hover:text-on-color block px-4 py-2 text-sm w-full text-left hover:bg-red-600`,
     onClick: () => onClickDeleteAddressBook(selectedAddressBookId.value)
   }, "Delete \"", selectedAddressBookName.value, "\"")))), h("section", {
     class: "relative inline-block text-left ml-2"

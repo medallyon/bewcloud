@@ -133,7 +133,7 @@ export default function ViewEventModal(
         <footer class='flex justify-between mt-2'>
           <button
             type='button'
-            class='px-5 py-2 bg-slate-600 hover:bg-red-600 text-white cursor-pointer rounded-md'
+            class='px-5 py-2 bg-slate-600 hover:bg-red-600 text-white hover:text-on-color cursor-pointer rounded-md'
             onClick={() => onClickDelete(calendarEvent.uid!)}
           >
             Delete
