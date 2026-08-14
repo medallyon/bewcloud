@@ -7,7 +7,7 @@ import { getFormDataField } from '/public/ts/utils/form.ts';
 import { EmailModel } from '/lib/models/email.ts';
 import { AppConfig } from '/lib/config.ts';
 import { getTimeZones } from '/public/ts/utils/calendar.ts';
-import { DEFAULT_THEME_ID, isThemeId, ThemeId } from '/public/ts/utils/theme.ts';
+import { DEFAULT_THEME_ID, isThemeId, parseThemeOverrides, ThemeId } from '/public/ts/utils/theme.ts';
 import { basicLayoutResponse } from '/lib/utils/layout.tsx';
 import Settings, { Action, actionWords } from '/components/Settings.ts';
 
@@ -24,6 +24,7 @@ async function get({ request, user, match, session, isRunningLocally }: RequestH
     currency: user!.extra.expenses_currency,
     timezoneId: user!.extra.timezone?.id || 'UTC',
     theme: user!.extra.theme,
+    themeOverrides: user!.extra.theme_overrides,
     isExpensesAppEnabled,
     helpEmail,
     isMultiFactorAuthEnabled,
@@ -210,7 +211,10 @@ async function post({ request, user, match, session, isRunningLocally }: Request
         throw new Error(`Invalid theme.`);
       }
 
+      const newThemeOverrides = parseThemeOverrides(getFormDataField(formData, 'theme-overrides'));
+
       user!.extra.theme = newTheme;
+      user!.extra.theme_overrides = Object.keys(newThemeOverrides).length > 0 ? newThemeOverrides : undefined;
 
       await UserModel.update(user!);
 
@@ -231,6 +235,7 @@ async function post({ request, user, match, session, isRunningLocally }: Request
       currency: user!.extra.expenses_currency,
       timezoneId: user!.extra.timezone?.id || 'UTC',
       theme: user!.extra.theme,
+      themeOverrides: user!.extra.theme_overrides,
       isExpensesAppEnabled,
       helpEmail,
       isMultiFactorAuthEnabled,
@@ -258,6 +263,7 @@ async function post({ request, user, match, session, isRunningLocally }: Request
       currency: user!.extra.expenses_currency,
       timezoneId: user!.extra.timezone?.id || 'UTC',
       theme: user!.extra.theme,
+      themeOverrides: user!.extra.theme_overrides,
       isExpensesAppEnabled,
       helpEmail,
       isMultiFactorAuthEnabled,
@@ -284,6 +290,7 @@ function defaultHtmlContent({
   currency,
   timezoneId,
   theme,
+  themeOverrides,
   isExpensesAppEnabled,
   isMultiFactorAuthEnabled,
   isCalendarAppEnabled,
@@ -296,6 +303,7 @@ function defaultHtmlContent({
   currency?: SupportedCurrencySymbol;
   timezoneId?: string;
   theme?: ThemeId;
+  themeOverrides?: Record<string, string>;
   isExpensesAppEnabled: boolean;
   isMultiFactorAuthEnabled: boolean;
   isCalendarAppEnabled: boolean;
@@ -309,6 +317,7 @@ function defaultHtmlContent({
     currency,
     timezoneId,
     theme: theme || DEFAULT_THEME_ID,
+    themeOverrides,
     isExpensesAppEnabled,
     isMultiFactorAuthEnabled,
     isCalendarAppEnabled,

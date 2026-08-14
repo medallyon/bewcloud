@@ -28,6 +28,8 @@ export interface User {
     };
     file_view?: FileView;
     theme?: ThemeId;
+    // Hex colours keyed by THEME_OVERRIDE_FIELDS, painted over whichever theme is picked
+    theme_overrides?: Record<string, string>;
   };
   created_at: Date;
 }

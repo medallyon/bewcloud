@@ -4,7 +4,13 @@ import denoConfig from '/deno.json' with { type: 'json' };
 import { RequestHandlerParams } from '/lib/page.ts';
 import { AppConfig } from '/lib/config.ts';
 import { escapeHtml, html } from '/public/ts/utils/misc.ts';
-import { DEFAULT_THEME_ID, isThemeId, THEME_COLORS } from '/public/ts/utils/theme.ts';
+import {
+  DEFAULT_THEME_ID,
+  isThemeId,
+  parseThemeOverrides,
+  THEME_COLORS,
+  themeOverridesToCssText,
+} from '/public/ts/utils/theme.ts';
 
 import Header from '/components/Header.tsx';
 import Sidebar from '/components/Sidebar.tsx';
@@ -35,6 +41,10 @@ async function basicLayout(
   // Rendered server-side, so there's no flash of the default theme before a saved one applies
   const theme = isThemeId(user?.extra.theme) ? user.extra.theme : DEFAULT_THEME_ID;
 
+  const themeOverrides = parseThemeOverrides(user?.extra.theme_overrides);
+  const themeOverridesCssText = themeOverridesToCssText(themeOverrides);
+  const themeColor = themeOverrides['chrome-gradient-start'] || themeOverrides['chrome'] || THEME_COLORS.get(theme);
+
   const headerReactNode = <Header route={currentPath} user={user} enabledApps={enabledApps} />;
 
   const headerHtml = renderToString(headerReactNode);
@@ -48,7 +58,9 @@ async function basicLayout(
 
   return html`
     <!DOCTYPE html>
-    <html lang="en" dir="ltr" class="h-full bg-slate-800" data-theme="${theme}">
+    <html lang="en" dir="ltr" class="h-full bg-slate-800" data-theme="${theme}" ${themeOverridesCssText
+      ? `style="${themeOverridesCssText}"`
+      : ''}>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -56,7 +68,7 @@ async function basicLayout(
         <meta name="description" content="${escapeHtml(description || defaultDescription)}">
         <meta name="author" content="Bruno Bernardino">
         <!-- Overrides the manifest's static theme_color, so PWA chrome follows the chosen theme -->
-        <meta name="theme-color" content="${THEME_COLORS.get(theme)}">
+        <meta name="theme-color" content="${themeColor}">
         <meta property="og:title" content="${escapeHtml(defaultTitle)}" />
         <link rel="icon" href="/public/images/favicon-dark.png" type="image/png" />
         <link rel="apple-touch-icon" href="/public/images/favicon-dark.png" />

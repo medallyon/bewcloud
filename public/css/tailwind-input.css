@@ -12,6 +12,7 @@
  * That re-themes every colour utility in the app at once, with no per-component sweep. Only neutrals + white are remapped, never chromatic colours.
  * The app's convention is "high step = background, low step = foreground", so a light theme simply reverses the ramp's lightness.
  * A theme may also paint two gradients: --theme-page-gradient behind the content, and --theme-chrome-gradient behind the frame (see the .chrome component).
+ * A user's own colour overrides are written as inline custom properties on <html>, so they win over the theme's block and apply on top of whichever theme is picked.
  * The default theme (bewcloud) declares nothing but its colour scheme: no overrides means Tailwind's built-ins, which is exactly today's look.
  * The selector matches any element, not just html, so the settings previews render themselves in their own palette by carrying data-theme on the tile.
  */
@@ -162,35 +163,6 @@
   --color-accent-hover: #9c2d1c;
 }
 
-[data-theme='nord'] {
-  color-scheme: dark;
-
-  --color-slate-950: #242933; /* chrome */
-  --color-slate-900: #2e3440; /* cards */
-  --color-slate-800: #3b4252; /* page */
-  --color-slate-700: #434c5e; /* rows */
-  --color-slate-600: #4c566a; /* borders, secondary buttons */
-  --color-slate-500: #5e6779; /* muted borders */
-  --color-slate-400: #8a93a5; /* muted text */
-  --color-slate-300: #d8dee9; /* secondary text */
-  --color-slate-200: #e5e9f0; /* text */
-  --color-slate-100: #eceff4; /* strong text */
-  --color-slate-50: #f5f7fa; /* strongest text */
-
-  --color-gray-900: #292e39; /* chrome */
-  --color-gray-700: #434c5e; /* rows */
-  --color-gray-600: #4c566a; /* borders */
-  --color-gray-500: #5e6779; /* muted borders */
-  --color-gray-400: #8a93a5; /* muted text */
-  --color-gray-300: #d8dee9; /* secondary text */
-  --color-gray-200: #e5e9f0; /* text */
-
-  --color-white: #eceff4;
-
-  --color-accent: #88c0d0;
-  --color-accent-hover: #8fbcbb;
-}
-
 [data-theme='dracula'] {
   color-scheme: dark;
 
@@ -249,37 +221,6 @@
 
   --color-accent: #1e66f5;
   --color-accent-hover: #7287fd;
-}
-
-[data-theme='daylight'] {
-  color-scheme: light;
-  /* Source SVGs are already black, so the invert chain that makes them white must be switched off */
-  --icon-filter: none;
-
-  --color-slate-950: #e8dcc3; /* chrome */
-  --color-slate-900: #f2ead8; /* cards */
-  --color-slate-800: #f7f2e7; /* page */
-  --color-slate-700: #fffdf7; /* rows */
-  --color-slate-600: #dcd0b6; /* borders, secondary buttons */
-  --color-slate-500: #b9ac90; /* muted borders */
-  --color-slate-400: #8c8267; /* muted text */
-  --color-slate-300: #6b6250; /* secondary text */
-  --color-slate-200: #574f40; /* text */
-  --color-slate-100: #423c31; /* strong text */
-  --color-slate-50: #2e2a22; /* strongest text */
-
-  --color-gray-900: #f2ead8; /* chrome */
-  --color-gray-700: #e8dcc3; /* rows */
-  --color-gray-600: #dcd0b6; /* borders */
-  --color-gray-500: #a89a7d; /* muted borders */
-  --color-gray-400: #8c8267; /* muted text */
-  --color-gray-300: #6b6250; /* secondary text */
-  --color-gray-200: #574f40; /* text */
-
-  --color-white: #3d372d;
-
-  --color-accent: #b5651d;
-  --color-accent-hover: #cf7c2f;
 }
 
 [data-theme='ember'] {
