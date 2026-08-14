@@ -1,6 +1,6 @@
 import { OptionalApp, User } from '/lib/types.ts';
 import { getMenuItems } from '/public/ts/utils/navigation.ts';
-import { DEFAULT_THEME_ID, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
+import { DEFAULT_THEME_ID, THEME_COLORS, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
 
 interface Data {
   route: string;
@@ -72,9 +72,9 @@ export default function Header({ route, user, enabledApps, theme = DEFAULT_THEME
                     key={themeId}
                     type='button'
                     data-theme-id={themeId}
-                    class={`block min-h-11 w-full px-4 text-left text-sm hover:bg-slate-600 ${
-                      themeId === theme ? 'text-accent font-semibold' : 'text-white'
-                    }`}
+                    data-theme-color={THEME_COLORS.get(themeId)}
+                    aria-current={themeId === theme ? 'true' : 'false'}
+                    class='block min-h-11 w-full px-4 text-left text-sm text-white hover:bg-slate-600 aria-current:font-semibold aria-current:text-accent'
                   >
                     {THEME_LABELS.get(themeId)}
                   </button>

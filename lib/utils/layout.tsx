@@ -107,13 +107,21 @@ async function basicLayout(
 
           // The themes are plain CSS variable overrides, so switching one is a single attribute write. Saving it is a background concern.
           document.getElementById('theme-switch')?.addEventListener('click', async (event) => {
-            const theme = event.target.closest('[data-theme-id]')?.dataset.themeId;
+            const option = event.target.closest('[data-theme-id]');
+            const theme = option?.dataset.themeId;
 
             if (!theme) {
               return;
             }
 
             document.documentElement.dataset.theme = theme;
+            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', option.dataset.themeColor);
+
+            // The menu is server-rendered, so the checked entry has to move client-side or it keeps marking the theme this page loaded with
+            for (const otherOption of document.querySelectorAll('#theme-switch [data-theme-id]')) {
+              otherOption.setAttribute('aria-current', String(otherOption === option));
+            }
+
             document.getElementById('theme-switch').open = false;
 
             try {
