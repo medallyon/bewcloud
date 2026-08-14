@@ -17,7 +17,7 @@ import {
 } from './fileActions.ts';
 import { useFileUploadDrop } from './useFileUploadDrop.ts';
 import { RequestBody as UpdateSortRequestBody } from '/pages/api/files/update-sort.ts';
-import { showToast } from '/public/ts/utils/toast.ts';
+import { showToast } from '/components/toast.ts';
 import { postToUploadServiceWorker, useUploadQueue } from './useUploadQueue.ts';
 import SearchFiles from './SearchFiles.tsx';
 import FilesList from './FilesList.tsx';

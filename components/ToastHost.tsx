@@ -1,4 +1,4 @@
-import { dismissToast, toasts } from '/public/ts/utils/toast.ts';
+import { dismissToast, toasts } from '/components/toast.ts';
 
 const toastClassPerType = new Map<string, string>([
   ['info', 'bg-slate-700 border-slate-500 text-white'],

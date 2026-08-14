@@ -1,3 +1,4 @@
+// This lives under components/ rather than public/ts/ because it imports a bare specifier: public/ts files are transpiled per request and bare imports can't be resolved there, while components are compiled by Babel and resolved by the page's import map
 import { signal } from '@preact/signals';
 
 export type ToastType = 'info' | 'success' | 'error';

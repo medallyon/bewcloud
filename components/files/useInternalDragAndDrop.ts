@@ -8,7 +8,7 @@ import {
 } from '/pages/api/files/get-directories.ts';
 import { RequestBody as GetFilesRequestBody, ResponseBody as GetFilesResponseBody } from '/pages/api/files/get.ts';
 import { isValidMoveTarget } from '/public/ts/utils/files.ts';
-import { showToast } from '/public/ts/utils/toast.ts';
+import { showToast } from '/components/toast.ts';
 import { FileItem } from './fileItemModel.ts';
 import { moveDirectory, moveFile } from './fileActions.ts';
 

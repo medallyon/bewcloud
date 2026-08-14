@@ -1,6 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
-import { showToast } from '/public/ts/utils/toast.ts';
+import { showToast } from "/public/components/toast.js";
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
 export async function postToUploadServiceWorker(message) {
   if (!('serviceWorker' in navigator)) {

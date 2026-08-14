@@ -1,4 +1,4 @@
-import { dismissToast, toasts } from '/public/ts/utils/toast.ts';
+import { dismissToast, toasts } from "/public/components/toast.js";
 const toastClassPerType = new Map([['info', 'bg-slate-700 border-slate-500 text-white'], ['success', 'bg-green-600 border-green-500 text-on-color'], ['error', 'bg-red-700 border-red-500 text-on-color']]);
 export default function ToastHost() {
   return h(Fragment, null, toasts.value.map(toast => h("section", {

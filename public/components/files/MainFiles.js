@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { sortDirectories, sortFiles, TRASH_PATH } from '/public/ts/utils/files.ts';
 import { createDirectory, createFileShare, deleteDirectory, deleteFile, deleteFileShare, moveDirectory, moveFile, renameDirectory, renameFile, updateFileShare } from "./fileActions.js";
 import { useFileUploadDrop } from "./useFileUploadDrop.js";
-import { showToast } from '/public/ts/utils/toast.ts';
+import { showToast } from "/public/components/toast.js";
 import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import FilesList from "./FilesList.js";

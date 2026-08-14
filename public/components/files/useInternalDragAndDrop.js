@@ -1,7 +1,7 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { isValidMoveTarget } from '/public/ts/utils/files.ts';
-import { showToast } from '/public/ts/utils/toast.ts';
+import { showToast } from "/public/components/toast.js";
 import { moveDirectory, moveFile } from "./fileActions.js";
 export const INTERNAL_DRAG_TYPE = 'application/x-bewcloud-items';
 export function useInternalDragAndDrop({
