@@ -17,7 +17,7 @@ export default function Sidebar({ route, enabledApps }: Data) {
 
   return (
     <>
-      <aside class='hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]'>
+      <aside class='hidden md:sticky md:top-0 md:flex md:h-dvh md:w-16 lg:w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-slate-700 chrome p-2 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]'>
         <a href='/' class='mb-4 flex min-h-11 items-center justify-center lg:justify-start lg:px-3'>
           <img
             class='h-8 w-8 drop-shadow-md lg:hidden'

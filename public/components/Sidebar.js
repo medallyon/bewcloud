@@ -8,7 +8,7 @@ export default function Sidebar({
   const activeClass = 'bg-slate-700 text-white';
   const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white';
   return h(Fragment, null, h("aside", {
-    class: "hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
+    class: "hidden md:sticky md:top-0 md:flex md:h-dvh md:w-16 lg:w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-slate-700 chrome p-2 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
   }, h("a", {
     href: "/",
     class: "mb-4 flex min-h-11 items-center justify-center lg:justify-start lg:px-3"
