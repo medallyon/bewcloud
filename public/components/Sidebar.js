@@ -8,8 +8,19 @@ export default function Sidebar({
   const activeClass = 'bg-slate-700 text-white';
   const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white';
   return h(Fragment, null, h("aside", {
-    class: "hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[env(safe-area-inset-top)]"
-  }, menuItems.map(menu => h("a", {
+    class: "hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
+  }, h("a", {
+    href: "/",
+    class: "mb-4 flex min-h-11 items-center justify-center lg:justify-start lg:px-3"
+  }, h("img", {
+    class: "h-8 w-8 drop-shadow-md lg:hidden",
+    src: "/public/images/logomark.svg",
+    alt: "a stylized blue cloud"
+  }), h("img", {
+    class: "hidden h-8 drop-shadow-md lg:block",
+    src: "/public/images/logo-white.svg",
+    alt: "the bewCloud logo"
+  })), menuItems.map(menu => h("a", {
     key: menu.url,
     href: menu.url,
     class: `flex min-h-11 items-center gap-3 rounded-lg px-3 font-normal ${route.startsWith(menu.url) ? activeClass : defaultClass}`,
@@ -22,7 +33,19 @@ export default function Sidebar({
     class: "white shrink-0"
   }), h("span", {
     class: "hidden lg:inline text-sm"
-  }, menu.label)))), h("nav", {
+  }, menu.label))), h("a", {
+    href: "/logout",
+    class: `mt-auto flex min-h-11 items-center gap-3 rounded-lg px-3 font-normal ${defaultClass}`,
+    title: "Logout"
+  }, h("img", {
+    src: "/public/images/logout.svg",
+    alt: "",
+    width: iconWidthAndHeightInPixels,
+    height: iconWidthAndHeightInPixels,
+    class: "white shrink-0"
+  }), h("span", {
+    class: "hidden lg:inline text-sm"
+  }, "Logout"))), h("nav", {
     class: "md:hidden fixed inset-x-0 bottom-0 z-30 flex min-h-14 items-stretch gap-1 overflow-x-auto border-t border-slate-700 chrome px-2 pb-[env(safe-area-inset-bottom)]"
   }, menuItems.map(menu => h("a", {
     key: menu.url,

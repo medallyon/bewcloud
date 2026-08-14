@@ -52,38 +52,36 @@ export default function Header({ route, user, enabledApps }: Data) {
 
           <h1 class='flex-1 truncate text-xl font-bold tracking-tight text-white sm:text-2xl'>{pageLabel}</h1>
 
-          <details class='relative shrink-0' id='account-menu'>
-            <summary class={`${defaultClass} flex min-h-11 min-w-11 list-none items-center justify-center`}>
-              <img
-                src='/public/images/settings.svg'
-                alt='A cog wheel'
-                title='Account'
-                width={iconWidthAndHeightInPixels}
-                height={iconWidthAndHeightInPixels}
-                class='white'
-              />
-            </summary>
-            <div class='absolute right-0 z-40 mt-2 w-64 origin-top-right rounded-xl border border-slate-600 bg-slate-700 shadow-lg'>
-              <div class='py-1'>
-                <span class='block truncate px-4 py-2 text-xs text-slate-300'>{user.email}</span>
-                <a
-                  href='/settings'
-                  class={`flex min-h-11 items-center px-4 text-sm font-normal text-white hover:bg-slate-600 ${
-                    route.startsWith('/settings') ? 'bg-slate-600' : ''
-                  }`}
-                >
-                  Settings
-                </a>
-                <a
-                  href='/logout'
-                  id='logout-link'
-                  class='flex min-h-11 items-center px-4 text-sm font-normal text-white hover:bg-slate-600'
-                >
-                  Logout
-                </a>
-              </div>
-            </div>
-          </details>
+          <a
+            href='/settings'
+            class={`${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center ${
+              route.startsWith('/settings') ? 'bg-slate-700 text-white' : ''
+            }`}
+          >
+            <img
+              src='/public/images/settings.svg'
+              alt='A cog wheel'
+              title='Settings'
+              width={iconWidthAndHeightInPixels}
+              height={iconWidthAndHeightInPixels}
+              class='white'
+            />
+          </a>
+
+          {/* The sidebar carries logout from md up, so this only fills in for the bottom tab bar, which has no room for it */}
+          <a
+            href='/logout'
+            class={`${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center md:hidden`}
+          >
+            <img
+              src='/public/images/logout.svg'
+              alt='An arrow leaving a door'
+              title='Logout'
+              width={iconWidthAndHeightInPixels}
+              height={iconWidthAndHeightInPixels}
+              class='white'
+            />
+          </a>
         </div>
       </nav>
     );

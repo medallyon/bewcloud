@@ -38,32 +38,27 @@ export default function Header({
       alt: "a stylized blue cloud"
     })), h("h1", {
       class: "flex-1 truncate text-xl font-bold tracking-tight text-white sm:text-2xl"
-    }, pageLabel), h("details", {
-      class: "relative shrink-0",
-      id: "account-menu"
-    }, h("summary", {
-      class: `${defaultClass} flex min-h-11 min-w-11 list-none items-center justify-center`
+    }, pageLabel), h("a", {
+      href: "/settings",
+      class: `${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center ${route.startsWith('/settings') ? 'bg-slate-700 text-white' : ''}`
     }, h("img", {
       src: "/public/images/settings.svg",
       alt: "A cog wheel",
-      title: "Account",
+      title: "Settings",
       width: iconWidthAndHeightInPixels,
       height: iconWidthAndHeightInPixels,
       class: "white"
-    })), h("div", {
-      class: "absolute right-0 z-40 mt-2 w-64 origin-top-right rounded-xl border border-slate-600 bg-slate-700 shadow-lg"
-    }, h("div", {
-      class: "py-1"
-    }, h("span", {
-      class: "block truncate px-4 py-2 text-xs text-slate-300"
-    }, user.email), h("a", {
-      href: "/settings",
-      class: `flex min-h-11 items-center px-4 text-sm font-normal text-white hover:bg-slate-600 ${route.startsWith('/settings') ? 'bg-slate-600' : ''}`
-    }, "Settings"), h("a", {
+    })), h("a", {
       href: "/logout",
-      id: "logout-link",
-      class: "flex min-h-11 items-center px-4 text-sm font-normal text-white hover:bg-slate-600"
-    }, "Logout"))))));
+      class: `${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center md:hidden`
+    }, h("img", {
+      src: "/public/images/logout.svg",
+      alt: "An arrow leaving a door",
+      title: "Logout",
+      width: iconWidthAndHeightInPixels,
+      height: iconWidthAndHeightInPixels,
+      class: "white"
+    }))));
   }
   return h("header", {
     class: "px-4 pt-8 pb-2 max-w-3xl mx-auto flex flex-col items-center justify-center"

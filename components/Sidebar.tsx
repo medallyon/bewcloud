@@ -17,7 +17,20 @@ export default function Sidebar({ route, enabledApps }: Data) {
 
   return (
     <>
-      <aside class='hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[env(safe-area-inset-top)]'>
+      <aside class='hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]'>
+        <a href='/' class='mb-4 flex min-h-11 items-center justify-center lg:justify-start lg:px-3'>
+          <img
+            class='h-8 w-8 drop-shadow-md lg:hidden'
+            src='/public/images/logomark.svg'
+            alt='a stylized blue cloud'
+          />
+          <img
+            class='hidden h-8 drop-shadow-md lg:block'
+            src='/public/images/logo-white.svg'
+            alt='the bewCloud logo'
+          />
+        </a>
+
         {menuItems.map((menu) => (
           <a
             key={menu.url}
@@ -37,6 +50,21 @@ export default function Sidebar({ route, enabledApps }: Data) {
             <span class='hidden lg:inline text-sm'>{menu.label}</span>
           </a>
         ))}
+
+        <a
+          href='/logout'
+          class={`mt-auto flex min-h-11 items-center gap-3 rounded-lg px-3 font-normal ${defaultClass}`}
+          title='Logout'
+        >
+          <img
+            src='/public/images/logout.svg'
+            alt=''
+            width={iconWidthAndHeightInPixels}
+            height={iconWidthAndHeightInPixels}
+            class='white shrink-0'
+          />
+          <span class='hidden lg:inline text-sm'>Logout</span>
+        </a>
       </aside>
 
       <nav class='md:hidden fixed inset-x-0 bottom-0 z-30 flex min-h-14 items-stretch gap-1 overflow-x-auto border-t border-slate-700 chrome px-2 pb-[env(safe-area-inset-bottom)]'>
