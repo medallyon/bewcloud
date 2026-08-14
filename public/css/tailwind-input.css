@@ -11,13 +11,158 @@
  * Themes work by overriding Tailwind's own --color-* variables, which its utilities reference (e.g. .bg-slate-800 { background-color: var(--color-slate-800) }).
  * That re-themes every colour utility in the app at once, with no per-component sweep. Only neutrals + white are remapped, never chromatic colours.
  * The app's convention is "high step = background, low step = foreground", so a light theme simply reverses the ramp's lightness.
+ * A theme may also paint two gradients: --theme-page-gradient behind the content, and --theme-chrome-gradient behind the frame (see the .chrome component).
  * The default theme (bewcloud) declares nothing but its colour scheme: no overrides means Tailwind's built-ins, which is exactly today's look.
+ * The selector matches any element, not just html, so the settings previews render themselves in their own palette by carrying data-theme on the tile.
  */
-html[data-theme='bewcloud'] {
+[data-theme='bewcloud'] {
   color-scheme: dark;
 }
 
-html[data-theme='nord'] {
+/* Tide: a single teal-to-indigo sheet across the frame, over a deep sea-slate content area */
+[data-theme='tide'] {
+  color-scheme: dark;
+
+  --theme-chrome-gradient: linear-gradient(160deg, #0f4a52 0%, #10293f 55%, #131a35 100%);
+  --theme-page-gradient: linear-gradient(180deg, #14303d 0%, #0c1c25 100%);
+
+  --color-slate-950: #08161d; /* chrome */
+  --color-slate-900: #0d202a; /* cards */
+  --color-slate-800: #122c38; /* page */
+  --color-slate-700: #1a3b49; /* rows */
+  --color-slate-600: #245061; /* borders, secondary buttons */
+  --color-slate-500: #2f6678; /* muted borders */
+  --color-slate-400: #7c9fab; /* muted text */
+  --color-slate-300: #b9d4da; /* secondary text */
+  --color-slate-200: #daeaee; /* text */
+  --color-slate-100: #eef7f9; /* strong text */
+  --color-slate-50: #f7fcfd; /* strongest text */
+
+  --color-gray-900: #0d202a; /* chrome */
+  --color-gray-700: #1a3b49; /* rows */
+  --color-gray-600: #245061; /* borders */
+  --color-gray-500: #2f6678; /* muted borders */
+  --color-gray-400: #7c9fab; /* muted text */
+  --color-gray-300: #b9d4da; /* secondary text */
+  --color-gray-200: #daeaee; /* text */
+
+  --color-white: #eaf5f7;
+
+  --color-accent: #2fb8a8;
+  --color-accent-hover: #46d3c1;
+  /* The accent is bright enough that white lettering on it fails contrast, so filled buttons get ink instead */
+  --color-on-color: #04231f;
+}
+
+/* Aurora: a plum room lit from the top-left corner, with the glow spilling from the frame onto the page */
+[data-theme='aurora'] {
+  color-scheme: dark;
+
+  --theme-chrome-gradient: radial-gradient(
+    140% 120% at 0% 0%,
+    rgb(192 132 252 / 0.38) 0%,
+    rgb(56 189 248 / 0.16) 38%,
+    transparent 70%
+  );
+  --theme-page-gradient: radial-gradient(90% 70% at 85% 0%, rgb(56 189 248 / 0.12) 0%, transparent 60%);
+
+  --color-slate-950: #14101f; /* chrome */
+  --color-slate-900: #1b1529; /* cards */
+  --color-slate-800: #221a32; /* page */
+  --color-slate-700: #2e2342; /* rows */
+  --color-slate-600: #3f3157; /* borders, secondary buttons */
+  --color-slate-500: #52426f; /* muted borders */
+  --color-slate-400: #9285ad; /* muted text */
+  --color-slate-300: #cfc4e0; /* secondary text */
+  --color-slate-200: #e6dff0; /* text */
+  --color-slate-100: #f4f0f9; /* strong text */
+  --color-slate-50: #fbf9fd; /* strongest text */
+
+  --color-gray-900: #1b1529; /* chrome */
+  --color-gray-700: #2e2342; /* rows */
+  --color-gray-600: #3f3157; /* borders */
+  --color-gray-500: #52426f; /* muted borders */
+  --color-gray-400: #9285ad; /* muted text */
+  --color-gray-300: #cfc4e0; /* secondary text */
+  --color-gray-200: #e6dff0; /* text */
+
+  --color-white: #f0eaf8;
+
+  --color-accent: #b57df5;
+  --color-accent-hover: #cfa4fb;
+  /* The accent is bright enough that white lettering on it fails contrast, so filled buttons get ink instead */
+  --color-on-color: #190f2b;
+}
+
+/* Graphite & Citron: no hue anywhere except one acid accent, so structure has to carry the interface */
+[data-theme='citron'] {
+  color-scheme: dark;
+
+  --theme-chrome-gradient: linear-gradient(180deg, #1c1c1f 0%, #0b0b0c 55%);
+
+  --color-slate-950: #0b0b0c; /* chrome */
+  --color-slate-900: #121214; /* cards */
+  --color-slate-800: #17171a; /* page */
+  --color-slate-700: #212125; /* rows */
+  --color-slate-600: #2e2e33; /* borders, secondary buttons */
+  --color-slate-500: #3f3f46; /* muted borders */
+  --color-slate-400: #8b8b95; /* muted text */
+  --color-slate-300: #c4c4cc; /* secondary text */
+  --color-slate-200: #e2e2e6; /* text */
+  --color-slate-100: #f2f2f4; /* strong text */
+  --color-slate-50: #fafafa; /* strongest text */
+
+  --color-gray-900: #121214; /* chrome */
+  --color-gray-700: #212125; /* rows */
+  --color-gray-600: #2e2e33; /* borders */
+  --color-gray-500: #3f3f46; /* muted borders */
+  --color-gray-400: #8b8b95; /* muted text */
+  --color-gray-300: #c4c4cc; /* secondary text */
+  --color-gray-200: #e2e2e6; /* text */
+
+  --color-white: #ededf0;
+
+  --color-accent: #c8dc00;
+  --color-accent-hover: #dcf03a;
+  /* The accent is bright enough that white lettering on it fails contrast, so filled buttons get ink instead */
+  --color-on-color: #14160a;
+}
+
+/* Paper: printed page rather than screen — warm stock, ink text, one vermillion accent, borders instead of fills */
+[data-theme='paper'] {
+  color-scheme: light;
+  /* Source SVGs are already black, so the invert chain that makes them white must be switched off */
+  --icon-filter: none;
+
+  --theme-chrome-gradient: linear-gradient(180deg, #f2ece0 0%, #e7dfcd 100%);
+
+  --color-slate-950: #ece5d6; /* chrome */
+  --color-slate-900: #f4efe3; /* cards */
+  --color-slate-800: #faf6ec; /* page */
+  --color-slate-700: #fffdf6; /* rows */
+  --color-slate-600: #d3c9b2; /* borders, secondary buttons */
+  --color-slate-500: #b3a894; /* muted borders */
+  --color-slate-400: #857c6d; /* muted text */
+  --color-slate-300: #5f584c; /* secondary text */
+  --color-slate-200: #3d3830; /* text */
+  --color-slate-100: #241f19; /* strong text */
+  --color-slate-50: #14100c; /* strongest text */
+
+  --color-gray-900: #f4efe3; /* chrome */
+  --color-gray-700: #ece5d6; /* rows */
+  --color-gray-600: #d3c9b2; /* borders */
+  --color-gray-500: #a89d88; /* muted borders */
+  --color-gray-400: #857c6d; /* muted text */
+  --color-gray-300: #5f584c; /* secondary text */
+  --color-gray-200: #3d3830; /* text */
+
+  --color-white: #1b1712;
+
+  --color-accent: #c03a26;
+  --color-accent-hover: #9c2d1c;
+}
+
+[data-theme='nord'] {
   color-scheme: dark;
 
   --color-slate-950: #242933; /* chrome */
@@ -46,7 +191,7 @@ html[data-theme='nord'] {
   --color-accent-hover: #8fbcbb;
 }
 
-html[data-theme='dracula'] {
+[data-theme='dracula'] {
   color-scheme: dark;
 
   --color-slate-950: #191a21; /* chrome */
@@ -75,7 +220,7 @@ html[data-theme='dracula'] {
   --color-accent-hover: #ff79c6;
 }
 
-html[data-theme='catppuccin-latte'] {
+[data-theme='catppuccin-latte'] {
   color-scheme: light;
   /* Source SVGs are already black, so the invert chain that makes them white must be switched off */
   --icon-filter: none;
@@ -106,7 +251,7 @@ html[data-theme='catppuccin-latte'] {
   --color-accent-hover: #7287fd;
 }
 
-html[data-theme='daylight'] {
+[data-theme='daylight'] {
   color-scheme: light;
   /* Source SVGs are already black, so the invert chain that makes them white must be switched off */
   --icon-filter: none;
@@ -137,7 +282,7 @@ html[data-theme='daylight'] {
   --color-accent-hover: #cf7c2f;
 }
 
-html[data-theme='ember'] {
+[data-theme='ember'] {
   color-scheme: dark;
 
   --color-slate-950: #1c1613; /* chrome */
@@ -170,6 +315,10 @@ html[data-theme='ember'] {
   html {
     /* Dark themes invert the black source SVGs to white; light themes set this to none */
     --icon-filter: invert(100%) sepia(0%) saturate(7500%) hue-rotate(42deg) brightness(99%) contrast(112%);
+
+    /* Themes without a gradient fall through to the flat bg-slate-800 underneath, so this costs them nothing */
+    background-image: var(--theme-page-gradient, none);
+    background-attachment: fixed;
   }
 
   *:focus-visible {
@@ -204,6 +353,13 @@ html[data-theme='ember'] {
 }
 
 @layer components {
+  /* The app frame: the sidebar rail, the mobile tab bar, and the header. Its gradient is viewport-fixed, so the rail and the header show two slices of one continuous sheet instead of each restarting the ramp. */
+  .chrome {
+    @apply bg-slate-950;
+    background-image: var(--theme-chrome-gradient, none);
+    background-attachment: fixed;
+  }
+
   .button {
     @apply inline-block rounded text-on-color no-underline font-normal bg-accent hover:bg-accent-hover hover:shadow-sm
       hover:no-underline px-4 py-2 cursor-pointer;

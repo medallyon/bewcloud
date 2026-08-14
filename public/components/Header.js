@@ -1,10 +1,8 @@
 import { getMenuItems } from '/public/ts/utils/navigation.ts';
-import { DEFAULT_THEME_ID, THEME_COLORS, THEME_IDS, THEME_LABELS } from '/public/ts/utils/theme.ts';
 export default function Header({
   route,
   user,
-  enabledApps,
-  theme = DEFAULT_THEME_ID
+  enabledApps
 }) {
   const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg font-medium';
   const iconWidthAndHeightInPixels = 20;
@@ -28,7 +26,7 @@ export default function Header({
       pageLabel = 'Calendar';
     }
     return h("nav", {
-      class: "bg-slate-950 pt-[env(safe-area-inset-top)]"
+      class: "chrome pt-[env(safe-area-inset-top)]"
     }, h("div", {
       class: "flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8"
     }, h("a", {
@@ -41,29 +39,6 @@ export default function Header({
     })), h("h1", {
       class: "flex-1 truncate text-xl font-bold tracking-tight text-white sm:text-2xl"
     }, pageLabel), h("details", {
-      class: "relative shrink-0",
-      id: "theme-switch"
-    }, h("summary", {
-      class: `${defaultClass} flex min-h-11 min-w-11 list-none items-center justify-center`
-    }, h("img", {
-      src: "/public/images/theme.svg",
-      alt: "A stack of colour swatches",
-      title: "Change theme",
-      width: iconWidthAndHeightInPixels,
-      height: iconWidthAndHeightInPixels,
-      class: "white"
-    })), h("div", {
-      class: "absolute right-0 z-40 mt-2 w-56 origin-top-right rounded-xl border border-slate-600 bg-slate-700 shadow-lg"
-    }, h("div", {
-      class: "py-1"
-    }, THEME_IDS.map(themeId => h("button", {
-      key: themeId,
-      type: "button",
-      "data-theme-id": themeId,
-      "data-theme-color": THEME_COLORS.get(themeId),
-      "aria-current": themeId === theme ? 'true' : 'false',
-      class: "block min-h-11 w-full px-4 text-left text-sm text-white hover:bg-slate-600 aria-current:font-semibold aria-current:text-accent"
-    }, THEME_LABELS.get(themeId)))))), h("details", {
       class: "relative shrink-0",
       id: "account-menu"
     }, h("summary", {

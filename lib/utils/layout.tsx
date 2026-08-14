@@ -35,7 +35,7 @@ async function basicLayout(
   // Rendered server-side, so there's no flash of the default theme before a saved one applies
   const theme = isThemeId(user?.extra.theme) ? user.extra.theme : DEFAULT_THEME_ID;
 
-  const headerReactNode = <Header route={currentPath} user={user} enabledApps={enabledApps} theme={theme} />;
+  const headerReactNode = <Header route={currentPath} user={user} enabledApps={enabledApps} />;
 
   const headerHtml = renderToString(headerReactNode);
 
@@ -103,39 +103,6 @@ async function basicLayout(
           // Tell the upload service worker to abort its queue before navigating away, instead of letting it keep running against a session that's about to be gone.
           document.getElementById('logout-link')?.addEventListener('click', () => {
             navigator.serviceWorker?.controller?.postMessage({ type: 'ABORT_UPLOADS' });
-          });
-
-          // The themes are plain CSS variable overrides, so switching one is a single attribute write. Saving it is a background concern.
-          document.getElementById('theme-switch')?.addEventListener('click', async (event) => {
-            const option = event.target.closest('[data-theme-id]');
-            const theme = option?.dataset.themeId;
-
-            if (!theme) {
-              return;
-            }
-
-            document.documentElement.dataset.theme = theme;
-            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', option.dataset.themeColor);
-
-            // The menu is server-rendered, so the checked entry has to move client-side or it keeps marking the theme this page loaded with
-            for (const otherOption of document.querySelectorAll('#theme-switch [data-theme-id]')) {
-              otherOption.setAttribute('aria-current', String(otherOption === option));
-            }
-
-            document.getElementById('theme-switch').open = false;
-
-            try {
-              const response = await fetch('/api/user/update-theme', {
-                method: 'POST',
-                body: JSON.stringify({ theme }),
-              });
-
-              if (!response.ok) {
-                throw new Error('Failed to save theme. ' + response.statusText);
-              }
-            } catch (error) {
-              console.error(error);
-            }
           });
         </script>
       </body>

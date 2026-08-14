@@ -3,7 +3,7 @@ import { convertObjectToFormData, currencyMap, escapeHtml, html } from '/public/
 import { SupportedCurrencySymbol, User } from '/lib/types.ts';
 import { getEnabledMultiFactorAuthMethodsFromUser } from '/public/ts/utils/multi-factor-auth.ts';
 import { getTimeZones } from '/public/ts/utils/calendar.ts';
-import { DEFAULT_THEME_ID, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
+import { DEFAULT_THEME_ID, THEME_COLORS, THEME_IDS, THEME_LABELS, ThemeId } from '/public/ts/utils/theme.ts';
 import Loading from '/components/Loading.ts';
 
 interface SettingsProps {
@@ -152,14 +152,11 @@ function formFields(
       required: true,
     });
   } else if (action === 'change-theme') {
+    // The visible control is the tile grid below, which writes the chosen theme into this field
     fields.push({
       name: 'theme',
-      label: 'Theme',
-      type: 'select',
-      options: THEME_IDS.map((themeId) => ({
-        value: themeId,
-        label: THEME_LABELS.get(themeId)!,
-      })),
+      label: '',
+      type: 'hidden',
       value: getFormDataField(formData, 'theme') || theme || DEFAULT_THEME_ID,
       required: true,
     });
@@ -186,6 +183,8 @@ export default function Settings(
 
   const multiFactorAuthMethods = getEnabledMultiFactorAuthMethodsFromUser(user);
 
+  const selectedTheme = getFormDataField(formData, 'theme') || theme || DEFAULT_THEME_ID;
+
   const emailFormAction: Action = notice?.title === 'Verify your email!' ||
       (getFormDataField(formData, 'action') === 'verify-change-email' && notice?.title !== 'Email updated!')
     ? 'verify-change-email'
@@ -211,15 +210,46 @@ export default function Settings(
 
       <h2 class="text-2xl mb-4 text-left px-4 max-w-3xl mx-auto lg:min-w-96">Change your theme</h2>
       <p class="text-left mt-2 mb-6 px-4 max-w-3xl mx-auto lg:min-w-96">
-        The theme applies everywhere you're signed in. The preview below updates as soon as you pick one.
+        Picking a theme previews it across the whole page. Apply saves it everywhere you're signed in.
       </p>
 
       <form method="POST" class="mb-12" id="change-theme-form">
         ${formFields('change-theme', formData, currency, timezoneId, theme).map((field) =>
           generateFieldHtml(field, formData)
         ).join('')}
-        <section class="flex justify-end mt-8 mb-4">
-          <button class="button-secondary" type="submit">Change theme</button>
+        <div class="grid grid-cols-2 gap-4 px-4 max-w-3xl mx-auto sm:grid-cols-3 lg:min-w-96">
+          ${THEME_IDS.map((themeId) =>
+            html`
+              <button
+                type="button"
+                data-theme="${themeId}"
+                data-theme-color="${THEME_COLORS.get(themeId)}"
+                aria-current="${themeId === selectedTheme ? 'true' : 'false'}"
+                title="Preview the ${THEME_LABELS.get(themeId)} theme"
+                class="flex aspect-5/4 w-full flex-col gap-2 rounded-xl border border-slate-600 bg-slate-800 p-2 text-left
+                  ring-accent aria-current:ring-2"
+              >
+                <!-- The tile carries data-theme, so these surfaces render in the theme they're previewing instead of duplicating its palette here -->
+                <span class="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-600">
+                  <span class="flex h-3 items-center justify-end px-1 bg-slate-950">
+                    <span class="h-1.5 w-1.5 rounded-full bg-accent"></span>
+                  </span>
+                  <span class="flex flex-1">
+                    <span class="w-1/4 bg-slate-900"></span>
+                    <span class="flex flex-1 flex-col gap-1 p-1 bg-slate-800">
+                      <span class="h-1.5 rounded bg-slate-700"></span>
+                      <span class="h-1.5 rounded bg-slate-700"></span>
+                      <span class="h-1.5 w-2/3 rounded bg-slate-700"></span>
+                    </span>
+                  </span>
+                </span>
+                <span class="truncate text-xs font-semibold text-white">${THEME_LABELS.get(themeId)}</span>
+              </button>
+            `
+          ).join('')}
+        </div>
+        <section class="flex justify-end mt-8 mb-4 px-4 max-w-3xl mx-auto lg:min-w-96">
+          <button class="button" type="submit">Apply</button>
         </section>
       </form>
 
@@ -316,9 +346,25 @@ export default function Settings(
     </section>
 
     <script>
-    // Recolour the page as soon as a theme is picked, so the select is its own preview. Submitting the form persists it.
-    document.getElementById('change-theme-form')?.querySelector('[name="theme"]')?.addEventListener('change', (event) => {
-      document.documentElement.dataset.theme = event.target.value;
+    const themeForm = document.getElementById('change-theme-form');
+    const themeInput = themeForm?.querySelector('[name="theme"]');
+
+    themeForm?.addEventListener('click', (event) => {
+      const tile = event.target.closest('[data-theme]');
+
+      // Every tile carries data-theme and so does <html>, so a click on the form's own padding would otherwise match the document
+      if (!tile || !themeForm.contains(tile)) {
+        return;
+      }
+
+      // Themes are plain CSS variable overrides, so previewing one is a single attribute write. Apply is what persists it.
+      document.documentElement.dataset.theme = tile.dataset.theme;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tile.dataset.themeColor);
+      themeInput.value = tile.dataset.theme;
+
+      for (const otherTile of themeForm.querySelectorAll('[data-theme]')) {
+        otherTile.setAttribute('aria-current', String(otherTile === tile));
+      }
     });
     </script>
 

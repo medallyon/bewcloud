@@ -8,7 +8,7 @@ export default function Sidebar({
   const activeClass = 'bg-slate-700 text-white';
   const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white';
   return h(Fragment, null, h("aside", {
-    class: "hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 bg-slate-950 p-2 pt-[env(safe-area-inset-top)]"
+    class: "hidden md:flex md:w-16 lg:w-56 shrink-0 flex-col gap-1 border-r border-slate-700 chrome p-2 pt-[env(safe-area-inset-top)]"
   }, menuItems.map(menu => h("a", {
     key: menu.url,
     href: menu.url,
@@ -23,7 +23,7 @@ export default function Sidebar({
   }), h("span", {
     class: "hidden lg:inline text-sm"
   }, menu.label)))), h("nav", {
-    class: "md:hidden fixed inset-x-0 bottom-0 z-30 flex min-h-14 items-stretch gap-1 overflow-x-auto border-t border-slate-700 bg-slate-950 px-2 pb-[env(safe-area-inset-bottom)]"
+    class: "md:hidden fixed inset-x-0 bottom-0 z-30 flex min-h-14 items-stretch gap-1 overflow-x-auto border-t border-slate-700 chrome px-2 pb-[env(safe-area-inset-bottom)]"
   }, menuItems.map(menu => h("a", {
     key: menu.url,
     href: menu.url,

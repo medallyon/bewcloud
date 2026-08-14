@@ -391,8 +391,6 @@ const routes: Routes = {
   apiNewsRefreshArticles: createPageRouteHandler('api/news/refresh-articles.ts', '/api/news/refresh-articles'),
 
   apiNotesSave: createPageRouteHandler('api/notes/save.ts', '/api/notes/save'),
-
-  apiUserUpdateTheme: createPageRouteHandler('api/user/update-theme.ts', '/api/user/update-theme'),
 };
 
 export default routes;
