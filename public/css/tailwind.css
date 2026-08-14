@@ -41,6 +41,7 @@
     --color-fuchsia-700: oklch(51.8% 0.253 323.949);
     --color-pink-800: oklch(45.9% 0.187 3.815);
     --color-rose-700: oklch(51.4% 0.222 16.935);
+    --color-slate-50: oklch(98.4% 0.003 247.858);
     --color-slate-100: oklch(96.8% 0.007 247.896);
     --color-slate-200: oklch(92.9% 0.013 255.508);
     --color-slate-300: oklch(86.9% 0.022 252.894);
@@ -54,6 +55,7 @@
     --color-gray-200: oklch(92.8% 0.006 264.531);
     --color-gray-300: oklch(87.2% 0.01 258.338);
     --color-gray-400: oklch(70.7% 0.022 261.325);
+    --color-gray-500: oklch(55.1% 0.027 264.364);
     --color-gray-600: oklch(44.6% 0.03 256.802);
     --color-gray-700: oklch(37.3% 0.034 259.733);
     --color-gray-900: oklch(21% 0.034 264.665);
@@ -304,6 +306,9 @@
   .top-0 {
     top: 0px;
   }
+  .top-1 {
+    top: var(--spacing);
+  }
   .top-1\/2 {
     top: calc(1 / 2 * 100%);
   }
@@ -327,6 +332,9 @@
   }
   .left-0 {
     left: 0px;
+  }
+  .left-1 {
+    left: var(--spacing);
   }
   .left-1\/2 {
     left: calc(1 / 2 * 100%);
@@ -542,6 +550,9 @@
     width: calc(var(--spacing) * 6);
     height: calc(var(--spacing) * 6);
   }
+  .h-1 {
+    height: var(--spacing);
+  }
   .h-1\.5 {
     height: calc(var(--spacing) * 1.5);
   }
@@ -608,11 +619,17 @@
   .w-0 {
     width: 0px;
   }
+  .w-1 {
+    width: var(--spacing);
+  }
   .w-1\.5 {
     width: calc(var(--spacing) * 1.5);
   }
   .w-1\/4 {
     width: calc(1 / 4 * 100%);
+  }
+  .w-2 {
+    width: calc(var(--spacing) * 2);
   }
   .w-2\/3 {
     width: calc(2 / 3 * 100%);
@@ -749,6 +766,9 @@
   .flex-none {
     flex: none;
   }
+  .flex-shrink {
+    flex-shrink: 1;
+  }
   .shrink {
     flex-shrink: 1;
   }
@@ -761,8 +781,16 @@
   .origin-top-right {
     transform-origin: 100% 0;
   }
+  .-translate-x-1 {
+    --tw-translate-x: calc(var(--spacing) * -1);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
   .-translate-x-1\/2 {
     --tw-translate-x: calc(calc(1 / 2 * 100%) * -1);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
+  .-translate-y-1 {
+    --tw-translate-y: calc(var(--spacing) * -1);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
   .-translate-y-1\/2 {
@@ -851,6 +879,9 @@
     --tw-space-y-reverse: 0;
     margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
     margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+  }
+  .gap-x-1 {
+    column-gap: var(--spacing);
   }
   .gap-x-1\.5 {
     column-gap: calc(var(--spacing) * 1.5);
@@ -1461,6 +1492,9 @@
   .ring-accent {
     --tw-ring-color: var(--color-accent);
   }
+  .ring-black {
+    --tw-ring-color: var(--color-black);
+  }
   .ring-black\/15 {
     --tw-ring-color: color-mix(in srgb, #000 15%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -1703,6 +1737,12 @@
     }
   }
   @media (width >= 48rem) {
+    .md\:sticky {
+      position: sticky;
+    }
+    .md\:top-0 {
+      top: 0px;
+    }
     .md\:order-2 {
       order: 2;
     }
@@ -1744,6 +1784,9 @@
     }
     .md\:table-row {
       display: table-row;
+    }
+    .md\:h-dvh {
+      height: 100dvh;
     }
     .md\:w-16 {
       width: calc(var(--spacing) * 16);
@@ -1828,8 +1871,34 @@
     }
   }
 }
+[data-theme] {
+  --theme-chrome-gradient: none;
+  --theme-page-gradient: none;
+  --color-on-color: #fff;
+}
 [data-theme='bewcloud'] {
   color-scheme: dark;
+  --color-slate-950: oklch(12.9% 0.042 264.695);
+  --color-slate-900: oklch(20.8% 0.042 265.755);
+  --color-slate-800: oklch(27.9% 0.041 260.031);
+  --color-slate-700: oklch(37.2% 0.044 257.287);
+  --color-slate-600: oklch(44.6% 0.043 257.281);
+  --color-slate-500: oklch(55.4% 0.046 257.417);
+  --color-slate-400: oklch(70.4% 0.04 256.788);
+  --color-slate-300: oklch(86.9% 0.022 252.894);
+  --color-slate-200: oklch(92.9% 0.013 255.508);
+  --color-slate-100: oklch(96.8% 0.007 247.896);
+  --color-slate-50: oklch(98.4% 0.003 247.858);
+  --color-gray-900: oklch(21% 0.034 264.665);
+  --color-gray-700: oklch(37.3% 0.034 259.733);
+  --color-gray-600: oklch(44.6% 0.03 256.802);
+  --color-gray-500: oklch(55.1% 0.027 264.364);
+  --color-gray-400: oklch(70.7% 0.022 261.325);
+  --color-gray-300: oklch(87.2% 0.01 258.338);
+  --color-gray-200: oklch(92.8% 0.006 264.531);
+  --color-white: #fff;
+  --color-accent: #51a4fb;
+  --color-accent-hover: oklch(74.6% 0.16 232.661);
 }
 [data-theme='tide'] {
   color-scheme: dark;

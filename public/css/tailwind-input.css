@@ -13,11 +13,44 @@
  * The app's convention is "high step = background, low step = foreground", so a light theme simply reverses the ramp's lightness.
  * A theme may also paint two gradients: --theme-page-gradient behind the content, and --theme-chrome-gradient behind the frame (see the .chrome component).
  * A user's own colour overrides are written as inline custom properties on <html>, so they win over the theme's block and apply on top of whichever theme is picked.
- * The default theme (bewcloud) declares nothing but its colour scheme: no overrides means Tailwind's built-ins, which is exactly today's look.
  * The selector matches any element, not just html, so the settings previews render themselves in their own palette by carrying data-theme on the tile.
  */
+
+/* A theme block is one attribute selector, so this equal-specificity reset above them only fills the gaps a theme leaves; without it a preview tile inherits those vars from whichever theme is on <html> */
+[data-theme] {
+  --theme-chrome-gradient: none;
+  --theme-page-gradient: none;
+  --color-on-color: #fff;
+}
+
+/* The default theme restates Tailwind's built-ins instead of inheriting them, so its preview tile stays bewcloud-blue while another theme sits on <html> */
 [data-theme='bewcloud'] {
   color-scheme: dark;
+
+  --color-slate-950: oklch(12.9% 0.042 264.695); /* chrome */
+  --color-slate-900: oklch(20.8% 0.042 265.755); /* cards */
+  --color-slate-800: oklch(27.9% 0.041 260.031); /* page */
+  --color-slate-700: oklch(37.2% 0.044 257.287); /* rows */
+  --color-slate-600: oklch(44.6% 0.043 257.281); /* borders, secondary buttons */
+  --color-slate-500: oklch(55.4% 0.046 257.417); /* muted borders */
+  --color-slate-400: oklch(70.4% 0.04 256.788); /* muted text */
+  --color-slate-300: oklch(86.9% 0.022 252.894); /* secondary text */
+  --color-slate-200: oklch(92.9% 0.013 255.508); /* text */
+  --color-slate-100: oklch(96.8% 0.007 247.896); /* strong text */
+  --color-slate-50: oklch(98.4% 0.003 247.858); /* strongest text */
+
+  --color-gray-900: oklch(21% 0.034 264.665); /* chrome */
+  --color-gray-700: oklch(37.3% 0.034 259.733); /* rows */
+  --color-gray-600: oklch(44.6% 0.03 256.802); /* borders */
+  --color-gray-500: oklch(55.1% 0.027 264.364); /* muted borders */
+  --color-gray-400: oklch(70.7% 0.022 261.325); /* muted text */
+  --color-gray-300: oklch(87.2% 0.01 258.338); /* secondary text */
+  --color-gray-200: oklch(92.8% 0.006 264.531); /* text */
+
+  --color-white: #fff;
+
+  --color-accent: #51a4fb;
+  --color-accent-hover: oklch(74.6% 0.16 232.661);
 }
 
 /* Tide: a single teal-to-indigo sheet across the frame, over a deep sea-slate content area */
