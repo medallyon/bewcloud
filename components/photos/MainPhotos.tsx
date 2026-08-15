@@ -34,9 +34,7 @@ export default function MainPhotos(
   const areNewOptionsOption = useSignal<boolean>(false);
   const isNewDirectoryModalOpen = useSignal<boolean>(false);
 
-  // Uploads run inside a service worker (public/sw.js) so they survive a page refresh; this hook enqueues files and
-  // hydrates isUploading/uploadProgress/uploadError from its broadcasts. Existing-file checking is done ourselves
-  // above (with a replace/skip/replace-all prompt), so the hook's own blanket skip-if-exists check is disabled here.
+  // Uploads run inside a service worker (public/sw.js) so they survive a page refresh; this hook enqueues files and hydrates isUploading/uploadProgress/uploadError from its broadcasts. Existing-file checking is done ourselves above (with a replace/skip/replace-all prompt), so the hook's own blanket skip-if-exists check is disabled here.
   const { isUploading, uploadProgress, uploadError, enqueueUpload } = useUploadQueue({
     isEnabled: true,
     path,

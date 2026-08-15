@@ -22,8 +22,7 @@ interface UseUploadQueueOptions {
   directories: Signal<Directory[]>;
   uploadSessionTag?: string;
   uploadKind?: 'file' | 'photo' | 'note';
-  // Skip the built-in "already exists" skip-with-error check for callers (like MainFiles) that already resolved
-  // name conflicts with the user (replace/skip/replace-all) before calling enqueueUpload.
+  // Skip the built-in "already exists" skip-with-error check for callers (like MainFiles) that already resolved name conflicts with the user (replace/skip/replace-all) before calling enqueueUpload.
   checkExistingFiles?: boolean;
 }
 

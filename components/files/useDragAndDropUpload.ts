@@ -22,9 +22,7 @@ interface UseDragAndDropUploadOptions {
   onEmptyDirectory?: (directoryPath: string) => Promise<void>;
 }
 
-// Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by
-// MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance
-// (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
+// Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
 export function useDragAndDropUpload(
   { path, files, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }: UseDragAndDropUploadOptions,
 ) {
@@ -42,8 +40,7 @@ export function useDragAndDropUpload(
       return path.value;
     }
 
-    // Resolve the parent path, keeping any sub-directory structure from directory uploads.
-    // We don't need to worry about path joining here, the API will handle it (and make sure it's secure)
+    // Resolve the parent path, keeping any sub-directory structure from directory uploads. We don't need to worry about path joining here, the API will handle it (and make sure it's secure)
     const directoryPath = file.webkitRelativePath.slice(0, -file.name.length);
     return `${path.value}${directoryPath}`;
   }
@@ -102,8 +99,7 @@ export function useDragAndDropUpload(
     replaceAllMode.value = false;
   }
 
-  // Process a single dropped file system entry (file or directory), tagging files with a webkitRelativePath so
-  // directory structure survives the upload, and collecting empty directory paths for the caller to create.
+  // Process a single dropped file system entry (file or directory), tagging files with a webkitRelativePath so directory structure survives the upload, and collecting empty directory paths for the caller to create.
   function processEntry(
     entry: FileSystemEntry,
     currentPath: string,
