@@ -1,9 +1,14 @@
 import { useSignal } from '@preact/signals';
 import { useUploadQueue } from "/public/components/files/useUploadQueue.js";
+import { useDragAndDropUpload } from "/public/components/files/useDragAndDropUpload.js";
+import FileConflictModal from "/public/components/files/FileConflictModal.js";
 import CreateDirectoryModal from "/public/components/files/CreateDirectoryModal.js";
 import ListFiles from "/public/components/files/ListFiles.js";
 import FilesBreadcrumb from "/public/components/files/FilesBreadcrumb.js";
 import ListPhotos from "/public/components/photos/ListPhotos.js";
+function isPhotoFile(file) {
+  return file.type.startsWith('image/') || file.type.startsWith('video/');
+}
 export default function MainPhotos({
   initialDirectories,
   initialFiles,
@@ -16,46 +21,6 @@ export default function MainPhotos({
   const path = useSignal(initialPath);
   const areNewOptionsOption = useSignal(false);
   const isNewDirectoryModalOpen = useSignal(false);
-  const isDraggingOver = useSignal(false);
-  const dragCounter = useSignal(0);
-  const fileConflictModal = useSignal(null);
-  const replaceAllMode = useSignal(false);
-  function checkFileExists(fileName, targetPath) {
-    const existingFiles = files.value;
-    return existingFiles.some(file => file.file_name === fileName && file.parent_path === targetPath);
-  }
-  function getTargetPath(file) {
-    if (!file.webkitRelativePath) {
-      return path.value;
-    }
-    const directoryPath = file.webkitRelativePath.slice(0, -file.name.length);
-    return `${path.value}${directoryPath}`;
-  }
-  function resolveFileConflict(file, targetPath) {
-    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
-      return Promise.resolve(true);
-    }
-    return new Promise(resolve => {
-      fileConflictModal.value = {
-        isOpen: true,
-        conflictFile: file,
-        existingFileName: file.name,
-        onReplace: () => {
-          fileConflictModal.value = null;
-          resolve(true);
-        },
-        onSkip: () => {
-          fileConflictModal.value = null;
-          resolve(false);
-        },
-        onReplaceAll: () => {
-          replaceAllMode.value = true;
-          fileConflictModal.value = null;
-          resolve(true);
-        }
-      };
-    });
-  }
   const {
     isUploading,
     uploadProgress,
@@ -70,6 +35,23 @@ export default function MainPhotos({
     uploadKind: 'photo',
     checkExistingFiles: false
   });
+  const {
+    isDraggingOver,
+    fileConflictModal,
+    uploadFiles,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop
+  } = useDragAndDropUpload({
+    path,
+    files,
+    enqueueUpload,
+    onBeforeUpload: () => {
+      areNewOptionsOption.value = false;
+    },
+    fileFilter: isPhotoFile
+  });
   function onClickUploadFile() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -82,129 +64,8 @@ export default function MainPhotos({
       if (chosenFiles.length === 0) {
         return;
       }
-      areNewOptionsOption.value = false;
-      replaceAllMode.value = false;
-      const itemsToUpload = [];
-      for (const chosenFile of chosenFiles) {
-        const targetPath = getTargetPath(chosenFile);
-        const shouldUpload = await resolveFileConflict(chosenFile, targetPath);
-        if (shouldUpload) {
-          itemsToUpload.push({
-            file: chosenFile,
-            parentPath: targetPath
-          });
-        }
-      }
-      await enqueueUpload(itemsToUpload);
-      replaceAllMode.value = false;
+      await uploadFiles(chosenFiles);
     };
-  }
-  async function handleDroppedFiles(droppedFiles) {
-    if (droppedFiles.length === 0) return;
-    const photoFiles = droppedFiles.filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'));
-    if (photoFiles.length === 0) return;
-    areNewOptionsOption.value = false;
-    replaceAllMode.value = false;
-    const itemsToUpload = [];
-    for (const file of photoFiles) {
-      const targetPath = getTargetPath(file);
-      const shouldUpload = await resolveFileConflict(file, targetPath);
-      if (shouldUpload) {
-        itemsToUpload.push({
-          file,
-          parentPath: targetPath
-        });
-      }
-    }
-    await enqueueUpload(itemsToUpload);
-    replaceAllMode.value = false;
-  }
-  async function handleDroppedItems(items) {
-    const filesToUpload = [];
-    await processDroppedItems(items, filesToUpload);
-    if (filesToUpload.length > 0) {
-      await handleDroppedFiles(filesToUpload);
-    }
-  }
-  async function processDroppedItems(items, filesToUpload) {
-    const promises = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const entry = item.webkitGetAsEntry();
-        if (entry) {
-          promises.push(processEntry(entry, '', filesToUpload));
-        }
-      }
-    }
-    await Promise.all(promises);
-  }
-  function processEntry(entry, currentPath, filesToUpload) {
-    return new Promise((resolve, reject) => {
-      if (entry.isFile) {
-        const fileEntry = entry;
-        fileEntry.file(file => {
-          if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-            Object.defineProperty(file, 'webkitRelativePath', {
-              value: currentPath ? `${currentPath}/${file.name}` : file.name,
-              writable: false
-            });
-            filesToUpload.push(file);
-          }
-          resolve();
-        }, reject);
-      } else if (entry.isDirectory) {
-        const dirEntry = entry;
-        const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
-        const reader = dirEntry.createReader();
-        reader.readEntries(async entries => {
-          try {
-            const promises = entries.map(childEntry => processEntry(childEntry, dirPath, filesToUpload));
-            await Promise.all(promises);
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        }, reject);
-      } else {
-        resolve();
-      }
-    });
-  }
-  function handleDragEnter(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.value++;
-    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      const hasFiles = Array.from(e.dataTransfer.items).some(item => item.kind === 'file');
-      if (hasFiles) {
-        isDraggingOver.value = true;
-      }
-    }
-  }
-  function handleDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.value--;
-    if (dragCounter.value === 0) {
-      isDraggingOver.value = false;
-    }
-  }
-  function handleDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  function handleDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    isDraggingOver.value = false;
-    dragCounter.value = 0;
-    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      handleDroppedItems(e.dataTransfer.items);
-    } else if (e.dataTransfer?.files) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      handleDroppedFiles(droppedFiles);
-    }
   }
   function onClickCreateDirectory() {
     if (isNewDirectoryModalOpen.value) {
@@ -336,29 +197,11 @@ export default function MainPhotos({
     isOpen: isNewDirectoryModalOpen.value,
     onClickSave: onClickSaveDirectory,
     onClose: onCloseCreateDirectory
-  }), fileConflictModal.value?.isOpen ? h("div", {
-    class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-  }, h("div", {
-    class: "bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl"
-  }, h("h3", {
-    class: "text-lg font-semibold mb-4 text-gray-900"
-  }, "File Already Exists"), h("p", {
-    class: "text-gray-600 mb-6"
-  }, "The file ", h("strong", {
-    class: "text-gray-900"
-  }, fileConflictModal.value.existingFileName), ' ', "already exists in this location. What would you like to do?"), h("div", {
-    class: "flex flex-col sm:flex-row gap-3"
-  }, h("button", {
-    onClick: fileConflictModal.value.onReplace,
-    class: "flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors",
-    type: "button"
-  }, "Replace"), h("button", {
-    onClick: fileConflictModal.value.onSkip,
-    class: "flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors",
-    type: "button"
-  }, "Skip"), h("button", {
-    onClick: fileConflictModal.value.onReplaceAll,
-    class: "flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors",
-    type: "button"
-  }, "Replace All")))) : null);
+  }), h(FileConflictModal, {
+    isOpen: fileConflictModal.value?.isOpen || false,
+    existingFileName: fileConflictModal.value?.existingFileName || '',
+    onReplace: fileConflictModal.value?.onReplace || (() => {}),
+    onSkip: fileConflictModal.value?.onSkip || (() => {}),
+    onReplaceAll: fileConflictModal.value?.onReplaceAll || (() => {})
+  }));
 }
