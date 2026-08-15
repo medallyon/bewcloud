@@ -1,4 +1,4 @@
-import { useSignal } from '@preact/signals';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { isValidMoveTarget } from '/public/ts/utils/files.ts';
 import { showToast } from "/public/components/toast.js";
@@ -20,6 +20,36 @@ export function useInternalDragAndDrop({
   useEffect(() => {
     isPointerPrecise.value = isEnabled && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   }, [isEnabled]);
+  useSignalEffect(() => {
+    if (!draggedItems.value) {
+      return;
+    }
+    const edgeSize = 96;
+    const maxPixelsPerFrame = 18;
+    let pointerY = -1;
+    let frame = 0;
+    function onDragOver(event) {
+      pointerY = event.clientY;
+    }
+    function scrollOnEdge() {
+      frame = requestAnimationFrame(scrollOnEdge);
+      if (pointerY < 0) {
+        return;
+      }
+      const distanceFromBottom = globalThis.innerHeight - pointerY;
+      if (pointerY < edgeSize) {
+        globalThis.scrollBy(0, -maxPixelsPerFrame * (1 - pointerY / edgeSize));
+      } else if (distanceFromBottom < edgeSize) {
+        globalThis.scrollBy(0, maxPixelsPerFrame * (1 - distanceFromBottom / edgeSize));
+      }
+    }
+    globalThis.addEventListener('dragover', onDragOver, true);
+    frame = requestAnimationFrame(scrollOnEdge);
+    return () => {
+      globalThis.removeEventListener('dragover', onDragOver, true);
+      cancelAnimationFrame(frame);
+    };
+  });
   function isValidDropTarget(targetPath) {
     const dragged = draggedItems.value;
     if (!dragged || isMoving.value) {
@@ -165,6 +195,11 @@ export function useInternalDragAndDrop({
           return;
         }
         event.stopPropagation();
+        const target = event.currentTarget;
+        const nextTarget = event.relatedTarget;
+        if (nextTarget && target?.contains(nextTarget)) {
+          return;
+        }
         if (dropTargetPath.value === targetPath) {
           dropTargetPath.value = null;
         }

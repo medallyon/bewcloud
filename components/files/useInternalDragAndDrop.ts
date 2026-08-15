@@ -1,4 +1,4 @@
-import { Signal, useSignal } from '@preact/signals';
+import { Signal, useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
@@ -58,6 +58,47 @@ export function useInternalDragAndDrop(
   useEffect(() => {
     isPointerPrecise.value = isEnabled && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   }, [isEnabled]);
+
+  // A native drag swallows wheel events, so reaching a target that's off-screen needs the page to scroll itself while the pointer rests near a viewport edge
+  useSignalEffect(() => {
+    if (!draggedItems.value) {
+      return;
+    }
+
+    const edgeSize = 96;
+    const maxPixelsPerFrame = 18;
+    let pointerY = -1;
+    let frame = 0;
+
+    function onDragOver(event: DragEvent) {
+      pointerY = event.clientY;
+    }
+
+    function scrollOnEdge() {
+      frame = requestAnimationFrame(scrollOnEdge);
+
+      if (pointerY < 0) {
+        return;
+      }
+
+      const distanceFromBottom = globalThis.innerHeight - pointerY;
+
+      if (pointerY < edgeSize) {
+        globalThis.scrollBy(0, -maxPixelsPerFrame * (1 - pointerY / edgeSize));
+      } else if (distanceFromBottom < edgeSize) {
+        globalThis.scrollBy(0, maxPixelsPerFrame * (1 - distanceFromBottom / edgeSize));
+      }
+    }
+
+    // Capture phase, because the drop targets below stopPropagation() their own dragover
+    globalThis.addEventListener('dragover', onDragOver, true);
+    frame = requestAnimationFrame(scrollOnEdge);
+
+    return () => {
+      globalThis.removeEventListener('dragover', onDragOver, true);
+      cancelAnimationFrame(frame);
+    };
+  });
 
   function isValidDropTarget(targetPath: string) {
     const dragged = draggedItems.value;
@@ -236,6 +277,14 @@ export function useInternalDragAndDrop(
         }
 
         event.stopPropagation();
+
+        // dragleave also fires when the pointer moves onto a child (a row's cells or its name link), which would otherwise unhighlight the target everywhere but the row's own padding
+        const target = event.currentTarget as HTMLElement | null;
+        const nextTarget = event.relatedTarget as Node | null;
+
+        if (nextTarget && target?.contains(nextTarget)) {
+          return;
+        }
 
         if (dropTargetPath.value === targetPath) {
           dropTargetPath.value = null;
