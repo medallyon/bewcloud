@@ -317,7 +317,7 @@ export default function MainFiles(
   }
 
   // Process a single file system entry (file or directory)
-  async function processEntry(
+  function processEntry(
     entry: FileSystemEntry,
     currentPath: string,
     filesToUpload: File[],

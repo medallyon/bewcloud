@@ -208,7 +208,7 @@ export default function MainFiles({
     }
     await Promise.all(promises);
   }
-  async function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
+  function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
         const fileEntry = entry;

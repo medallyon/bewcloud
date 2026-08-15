@@ -139,7 +139,7 @@ export default function MainPhotos({
     }
     await Promise.all(promises);
   }
-  async function processEntry(entry, currentPath, filesToUpload) {
+  function processEntry(entry, currentPath, filesToUpload) {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
         const fileEntry = entry;

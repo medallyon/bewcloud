@@ -198,7 +198,7 @@ export default function MainPhotos(
   }
 
   // Process a single file system entry (file or directory) - photos only
-  async function processEntry(entry: FileSystemEntry, currentPath: string, filesToUpload: File[]): Promise<void> {
+  function processEntry(entry: FileSystemEntry, currentPath: string, filesToUpload: File[]): Promise<void> {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
         const fileEntry = entry as FileSystemFileEntry;
