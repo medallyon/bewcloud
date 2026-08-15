@@ -12,8 +12,9 @@ export default function FilesBulkBar(
     return null;
   }
 
+  // Floating on every breakpoint rather than in flow, so selecting an item doesn't push the whole list down by the bar's height
   return (
-    <section class='max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] z-30 flex items-center gap-2 border border-slate-600 bg-slate-900 px-4 py-2 max-md:rounded-none md:mb-2 md:rounded-xl'>
+    <section class='fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] z-30 flex items-center gap-2 border border-slate-600 bg-slate-900 px-4 py-2 max-md:rounded-none md:bottom-6 md:left-1/2 md:right-auto md:-translate-x-1/2 md:rounded-xl md:shadow-lg md:shadow-black/40'>
       <span class='flex-1 text-sm text-slate-100'>
         {chosenItemsCount} selected
       </span>

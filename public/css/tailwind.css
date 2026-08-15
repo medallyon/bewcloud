@@ -319,6 +319,9 @@
   .bottom-4 {
     bottom: calc(var(--spacing) * 4);
   }
+  .bottom-\[calc\(env\(safe-area-inset-bottom\)\+3\.5rem\)\] {
+    bottom: calc(env(safe-area-inset-bottom) + 3.5rem);
+  }
   .left-0 {
     left: 0px;
   }
@@ -1607,15 +1610,6 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   @media (width < 48rem) {
-    .max-md\:fixed {
-      position: fixed;
-    }
-    .max-md\:inset-x-0 {
-      inset-inline: 0px;
-    }
-    .max-md\:bottom-\[calc\(env\(safe-area-inset-bottom\)\+3\.5rem\)\] {
-      bottom: calc(env(safe-area-inset-bottom) + 3.5rem);
-    }
     .max-md\:bottom-\[calc\(env\(safe-area-inset-bottom\)\+4\.5rem\)\] {
       bottom: calc(env(safe-area-inset-bottom) + 4.5rem);
     }
@@ -1651,6 +1645,15 @@
     .md\:top-0 {
       top: 0px;
     }
+    .md\:right-auto {
+      right: auto;
+    }
+    .md\:bottom-6 {
+      bottom: calc(var(--spacing) * 6);
+    }
+    .md\:left-1\/2 {
+      left: calc(1 / 2 * 100%);
+    }
     .md\:order-2 {
       order: 2;
     }
@@ -1668,9 +1671,6 @@
     }
     .md\:mb-0 {
       margin-bottom: 0px;
-    }
-    .md\:mb-2 {
-      margin-bottom: calc(var(--spacing) * 2);
     }
     .md\:ml-0 {
       margin-left: 0px;
@@ -1701,6 +1701,10 @@
     }
     .md\:w-auto {
       width: auto;
+    }
+    .md\:-translate-x-1\/2 {
+      --tw-translate-x: calc(calc(1 / 2 * 100%) * -1);
+      translate: var(--tw-translate-x) var(--tw-translate-y);
     }
     .md\:grid-cols-3 {
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1736,9 +1740,21 @@
     .md\:text-gray-300 {
       color: var(--color-gray-300);
     }
+    .md\:shadow-lg {
+      --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
     .md\:shadow-none {
       --tw-shadow: 0 0 #0000;
       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
+    .md\:shadow-black\/40 {
+      --tw-shadow-color: color-mix(in srgb, #000 40%, transparent);
+    }
+    @supports (color: color-mix(in lab, red, red)) {
+      .md\:shadow-black\/40 {
+        --tw-shadow-color: color-mix(in oklab, color-mix(in oklab, var(--color-black) 40%, transparent) var(--tw-shadow-alpha), transparent);
+      }
     }
   }
   @media (width >= 64rem) {
