@@ -674,6 +674,9 @@ export default function MainFiles(
       return;
     }
 
+    // Delete replaces Manage rather than stacking on top of it — two overlapping backdrops looks odd.
+    manageShareModal.value = null;
+
     confirmModal.value = {
       isOpen: true,
       title: 'Delete public share link',
@@ -689,8 +692,6 @@ export default function MainFiles(
 
           directories.value = [...result.newDirectories];
           files.value = [...result.newFiles];
-
-          manageShareModal.value = null;
 
           showToast({ message: 'Public share link deleted.', type: 'success' });
         } catch (error) {
@@ -793,7 +794,7 @@ export default function MainFiles(
                     height={20}
                   />
                 </summary>
-                <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
+                <div class='absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
                   {SORT_OPTIONS.map((option) => (
                     <button
                       key={option.column}
@@ -855,7 +856,7 @@ export default function MainFiles(
                       />
                       New
                     </summary>
-                    <div class='absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
+                    <div class='absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg'>
                       <button
                         class='flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600'
                         onClick={() => onClickUploadFile()}
@@ -1038,8 +1039,6 @@ export default function MainFiles(
         )
         : null}
 
-      <ConfirmModal state={confirmModal.value} onClose={() => confirmModal.value = null} />
-
       {!fileShareId
         ? (
           <CreateDirectoryModal
@@ -1146,6 +1145,10 @@ export default function MainFiles(
           />
         )
         : null}
+
+      {/* Rendered last so its z-50 panel wins the tie over every other modal above — Delete is
+          often confirmed as a follow-up action from within one of them (e.g. deleting a share). */}
+      <ConfirmModal state={confirmModal.value} onClose={() => confirmModal.value = null} />
     </div>
   );
 }

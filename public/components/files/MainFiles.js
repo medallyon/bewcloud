@@ -510,6 +510,7 @@ export default function MainFiles({
     if (!fileShareId || isDeleting.value) {
       return;
     }
+    manageShareModal.value = null;
     confirmModal.value = {
       isOpen: true,
       title: 'Delete public share link',
@@ -523,7 +524,6 @@ export default function MainFiles({
           const result = await deleteFileShare(path.value, fileShareId);
           directories.value = [...result.newDirectories];
           files.value = [...result.newFiles];
-          manageShareModal.value = null;
           showToast({
             message: 'Public share link deleted.',
             type: 'success'
@@ -609,7 +609,7 @@ export default function MainFiles({
     width: 20,
     height: 20
   })), h("div", {
-    class: "absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
+    class: "absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
   }, SORT_OPTIONS.map(option => h("button", {
     key: option.column,
     type: "button",
@@ -643,7 +643,7 @@ export default function MainFiles({
     width: 20,
     height: 20
   }), "New"), h("div", {
-    class: "absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
+    class: "absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
   }, h("button", {
     class: "flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600",
     onClick: () => onClickUploadFile(),
@@ -755,10 +755,7 @@ export default function MainFiles({
     sortOrder: sortOrder.value,
     view: view.value,
     dragAndDrop: filesDragAndDrop
-  })) : null, h(ConfirmModal, {
-    state: confirmModal.value,
-    onClose: () => confirmModal.value = null
-  }), !fileShareId ? h(CreateDirectoryModal, {
+  })) : null, !fileShareId ? h(CreateDirectoryModal, {
     isOpen: isNewDirectoryModalOpen.value,
     onClickSave: onClickSaveDirectory,
     onClose: onCloseCreateDirectory
@@ -813,5 +810,8 @@ export default function MainFiles({
     onClickSave: onClickUpdateFileShare,
     onClickDelete: onClickDeleteFileShare,
     onClose: onClickCloseManageShare
-  }) : null);
+  }) : null, h(ConfirmModal, {
+    state: confirmModal.value,
+    onClose: () => confirmModal.value = null
+  }));
 }

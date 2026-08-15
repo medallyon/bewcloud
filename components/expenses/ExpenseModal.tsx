@@ -1,5 +1,5 @@
 import { useSignal } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 
 import { Budget, Expense } from '/lib/types.ts';
 import { formatInputToNumber } from '/public/ts/utils/misc.ts';
@@ -35,6 +35,19 @@ export default function ExpenseModal(
   const newExpenseIsRecurring = useSignal<boolean>(expense?.is_recurring ?? false);
   const suggestions = useSignal<string[]>([]);
   const showSuggestions = useSignal<boolean>(false);
+  const suggestionsPosition = useSignal<{ top: number; left: number; width: number } | null>(null);
+  const descriptionInputRef = useRef<HTMLInputElement>(null);
+
+  function positionSuggestions() {
+    const input = descriptionInputRef.current;
+
+    if (!input) {
+      return;
+    }
+
+    const rect = input.getBoundingClientRect();
+    suggestionsPosition.value = { top: rect.bottom + 4, left: rect.left, width: rect.width };
+  }
 
   const resetForm = () => {
     newExpenseCost.value = '';
@@ -58,6 +71,26 @@ export default function ExpenseModal(
       resetForm();
     }
   }, [expense, shouldResetForm]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    // The suggestions list is viewport-fixed (see below) so it can escape the modal panel's own
+    // overflow-y-scroll clipping. That means it has to be hidden, not just repositioned, if the
+    // panel itself scrolls underneath it — capture phase because the panel's internal scroll
+    // doesn't bubble to window as a normal scroll event.
+    function hideSuggestionsOnScroll() {
+      showSuggestions.value = false;
+    }
+
+    globalThis.addEventListener('scroll', hideSuggestionsOnScroll, true);
+
+    return () => {
+      globalThis.removeEventListener('scroll', hideSuggestionsOnScroll, true);
+    };
+  }, [isOpen]);
 
   const sortedBudgetNames = budgets.map((budget) => budget.name).sort();
 
@@ -87,6 +120,7 @@ export default function ExpenseModal(
         const result = await response.json() as SuggestionsResponse;
         suggestions.value = result.suggestions;
         showSuggestions.value = true;
+        positionSuggestions();
       }
     } catch (error) {
       console.error('Failed to fetch suggestions:', error);
@@ -125,9 +159,10 @@ export default function ExpenseModal(
             />
           </fieldset>
 
-          <fieldset class='block mb-2 relative'>
+          <fieldset class='block mb-2'>
             <label class='text-slate-300 block pb-1' for='expense_description'>Description</label>
             <input
+              ref={descriptionInputRef}
               class='input-field'
               type='text'
               name='expense_description'
@@ -151,6 +186,7 @@ export default function ExpenseModal(
               onFocus={() => {
                 if (suggestions.value.length > 0) {
                   showSuggestions.value = true;
+                  positionSuggestions();
                 }
               }}
               onBlur={() => {
@@ -160,9 +196,17 @@ export default function ExpenseModal(
               }}
               placeholder='Lunch'
             />
-            {showSuggestions.value && suggestions.value.length > 0
+            {showSuggestions.value && suggestions.value.length > 0 && suggestionsPosition.value
               ? (
-                <ul class='absolute z-50 w-full bg-slate-700 rounded-md mt-1 max-h-40 overflow-y-auto ring-1 ring-slate-800 shadow-lg'>
+                <ul
+                  class='z-50 bg-slate-700 rounded-md max-h-40 overflow-y-auto ring-1 ring-slate-800 shadow-lg'
+                  style={{
+                    position: 'fixed',
+                    top: `${suggestionsPosition.value.top}px`,
+                    left: `${suggestionsPosition.value.left}px`,
+                    width: `${suggestionsPosition.value.width}px`,
+                  }}
+                >
                   {suggestions.value.map((suggestion) => (
                     <li
                       key={suggestion}

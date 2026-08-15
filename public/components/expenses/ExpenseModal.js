@@ -1,5 +1,5 @@
 import { useSignal } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { formatInputToNumber } from '/public/ts/utils/misc.ts';
 export default function ExpenseModal({
   isOpen,
@@ -17,6 +17,20 @@ export default function ExpenseModal({
   const newExpenseIsRecurring = useSignal(expense?.is_recurring ?? false);
   const suggestions = useSignal([]);
   const showSuggestions = useSignal(false);
+  const suggestionsPosition = useSignal(null);
+  const descriptionInputRef = useRef(null);
+  function positionSuggestions() {
+    const input = descriptionInputRef.current;
+    if (!input) {
+      return;
+    }
+    const rect = input.getBoundingClientRect();
+    suggestionsPosition.value = {
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width
+    };
+  }
   const resetForm = () => {
     newExpenseCost.value = '';
     newExpenseDescription.value = '';
@@ -37,6 +51,18 @@ export default function ExpenseModal({
       resetForm();
     }
   }, [expense, shouldResetForm]);
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    function hideSuggestionsOnScroll() {
+      showSuggestions.value = false;
+    }
+    globalThis.addEventListener('scroll', hideSuggestionsOnScroll, true);
+    return () => {
+      globalThis.removeEventListener('scroll', hideSuggestionsOnScroll, true);
+    };
+  }, [isOpen]);
   const sortedBudgetNames = budgets.map(budget => budget.name).sort();
   if (!sortedBudgetNames.includes('Misc')) {
     sortedBudgetNames.push('Misc');
@@ -60,6 +86,7 @@ export default function ExpenseModal({
         const result = await response.json();
         suggestions.value = result.suggestions;
         showSuggestions.value = true;
+        positionSuggestions();
       }
     } catch (error) {
       console.error('Failed to fetch suggestions:', error);
@@ -92,11 +119,12 @@ export default function ExpenseModal({
     inputmode: "decimal",
     placeholder: "10.99"
   })), h("fieldset", {
-    class: "block mb-2 relative"
+    class: "block mb-2"
   }, h("label", {
     class: "text-slate-300 block pb-1",
     for: "expense_description"
   }, "Description"), h("input", {
+    ref: descriptionInputRef,
     class: "input-field",
     type: "text",
     name: "expense_description",
@@ -114,6 +142,7 @@ export default function ExpenseModal({
     onFocus: () => {
       if (suggestions.value.length > 0) {
         showSuggestions.value = true;
+        positionSuggestions();
       }
     },
     onBlur: () => {
@@ -122,8 +151,14 @@ export default function ExpenseModal({
       }, 200);
     },
     placeholder: "Lunch"
-  }), showSuggestions.value && suggestions.value.length > 0 ? h("ul", {
-    class: "absolute z-50 w-full bg-slate-700 rounded-md mt-1 max-h-40 overflow-y-auto ring-1 ring-slate-800 shadow-lg"
+  }), showSuggestions.value && suggestions.value.length > 0 && suggestionsPosition.value ? h("ul", {
+    class: "z-50 bg-slate-700 rounded-md max-h-40 overflow-y-auto ring-1 ring-slate-800 shadow-lg",
+    style: {
+      position: 'fixed',
+      top: `${suggestionsPosition.value.top}px`,
+      left: `${suggestionsPosition.value.left}px`,
+      width: `${suggestionsPosition.value.width}px`
+    }
   }, suggestions.value.map(suggestion => h("li", {
     key: suggestion,
     class: "px-4 py-2 hover:bg-slate-600 cursor-pointer",

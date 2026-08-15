@@ -1,3 +1,5 @@
+import { useSignal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
 export default function FilesItemMenu({
   item,
   onClickRename,
@@ -8,6 +10,36 @@ export default function FilesItemMenu({
   onClickManageShare
 }) {
   const itemLabel = item.isDirectory ? 'directory' : 'file';
+  const detailsRef = useRef(null);
+  const position = useSignal(null);
+  useEffect(() => {
+    const details = detailsRef.current;
+    if (!details) {
+      return;
+    }
+    function close() {
+      details.open = false;
+    }
+    function handleToggle() {
+      if (!details.open) {
+        position.value = null;
+        return;
+      }
+      const rect = details.getBoundingClientRect();
+      position.value = {
+        top: rect.bottom + 4,
+        right: globalThis.innerWidth - rect.right
+      };
+    }
+    details.addEventListener('toggle', handleToggle);
+    globalThis.addEventListener('scroll', close, true);
+    globalThis.addEventListener('resize', close);
+    return () => {
+      details.removeEventListener('toggle', handleToggle);
+      globalThis.removeEventListener('scroll', close, true);
+      globalThis.removeEventListener('resize', close);
+    };
+  }, []);
   const entries = [];
   if (onClickDownload && item.isDirectory) {
     entries.push({
@@ -50,6 +82,7 @@ export default function FilesItemMenu({
     return null;
   }
   return h("details", {
+    ref: detailsRef,
     class: "relative",
     name: "files-item-menu"
   }, h("summary", {
@@ -61,12 +94,16 @@ export default function FilesItemMenu({
     class: "white w-5 max-w-5",
     width: 20,
     height: 20
-  })), h("div", {
-    class: "absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
+  })), position.value ? h("div", {
+    class: "fixed z-10 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg",
+    style: {
+      top: `${position.value.top}px`,
+      right: `${position.value.right}px`
+    }
   }, entries.map(entry => h("button", {
     key: entry.label,
     type: "button",
     class: `flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-slate-600 ${entry.isDangerous ? 'text-red-400' : 'text-white'}`,
     onClick: entry.onClick
-  }, entry.label))));
+  }, entry.label))) : null);
 }
