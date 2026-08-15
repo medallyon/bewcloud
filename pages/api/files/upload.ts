@@ -3,7 +3,7 @@ import page, { RequestHandlerParams } from '/lib/page.ts';
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { DirectoryModel, FileModel } from '/lib/models/files.ts';
 import { AppConfig } from '/lib/config.ts';
-import { generateUploadSessionTag } from '/lib/auth.ts';
+import { isUploadSessionTagValid } from '/lib/auth.ts';
 
 export interface ResponseBody {
   success: boolean;
@@ -28,8 +28,8 @@ async function post({ request, user, session }: RequestHandlerParams) {
   const contents = requestBody.get('contents') as File | string;
   const uploadSessionTag = requestBody.get('upload_session_tag') as string;
 
-  // Uploads are queued in a service worker that outlives the page, so a queue left over from a previous session must not keep writing into whoever is logged in now. Untagged requests (WebDAV/basic auth) are left alone.
-  if (uploadSessionTag && uploadSessionTag !== await generateUploadSessionTag(session?.tokenData?.session_id)) {
+  // Uploads are queued in a service worker that outlives the page, so a queue left over from a previous session must not keep writing into whoever is logged in now. Cookie sessions must send a matching tag; basic auth has no session id and skips this.
+  if (!await isUploadSessionTagValid(uploadSessionTag, session?.tokenData?.session_id)) {
     return new Response('Forbidden', { status: 403 });
   }
 

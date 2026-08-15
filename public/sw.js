@@ -39,7 +39,7 @@ function abandonCurrentJob() {
   currentJob = null;
 
   broadcastState();
-  cleanupAbortedChunkUpload(job);
+  return cleanupAbortedChunkUpload(job);
 }
 
 // Best-effort: if a chunked upload was mid-flight when the job got abandoned, tell the server to drop whatever chunks it already received instead of leaving them in .chunk-uploads until the 24h stale sweep.
@@ -48,10 +48,13 @@ async function cleanupAbortedChunkUpload(job) {
     return;
   }
 
+  const uploadId = job.currentUploadId;
+  job.currentUploadId = undefined;
+
   try {
     await fetch('/api/files/upload-abort', {
       method: 'POST',
-      body: JSON.stringify({ upload_id: job.currentUploadId, upload_session_tag: job.sessionTag }),
+      body: JSON.stringify({ upload_id: uploadId, upload_session_tag: job.sessionTag }),
     });
   } catch {
     // Best-effort only - the 24h stale sweep still catches it if this fails.
@@ -62,19 +65,21 @@ function isUnderDeletedPath(parentPath, deletedPath) {
   return typeof parentPath === 'string' && parentPath.startsWith(deletedPath);
 }
 
-// Drops queued items that would land in the directory that just got deleted (or a subdirectory of it), without touching queued items for anywhere else. If the item currently mid-flight is itself affected, the whole job is abandoned instead: there's only one AbortController per job, so an in-flight fetch can't be cancelled without cancelling the job's future fetches too.
+// Drops queued items that would land in the directory that just got deleted (or a subdirectory of it), without touching queued items for anywhere else. If the in-flight item is affected, only that fetch is aborted: replace the job AbortController so later items can still run.
 function handleDirectoryDeleted(job, deletedPath) {
-  if (isUnderDeletedPath(job.currentItemParentPath, deletedPath)) {
-    abandonCurrentJob();
-    return;
-  }
-
-  const queueLengthBefore = job.queue.length;
+  const currentAffected = isUnderDeletedPath(job.currentItemParentPath, deletedPath);
   job.queue = job.queue.filter((item) => !isUnderDeletedPath(item.parentPath, deletedPath));
 
-  if (job.queue.length !== queueLengthBefore) {
-    broadcastState();
+  if (currentAffected) {
+    job.currentItemCancelled = true;
+    job.currentItemKind = '';
+    job.uploadProgress = '';
+    const previousAbortController = job.abortController;
+    job.abortController = new AbortController();
+    previousAbortController.abort();
   }
+
+  broadcastState();
 }
 
 // A 403 is the endpoints refusing this queue's session tag, and a redirect means there's no session left at all (the request was bounced to the login page). The upload endpoints use 503, not 403, when they're refusing for an unrelated reason (the app is disabled), so 403 here means the session specifically.
@@ -156,6 +161,11 @@ async function uploadFileChunked(job, file, parentPath, pathInView) {
   let completedResult = null;
 
   for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    // Directory-delete swaps the job AbortController so later files can continue; that abort only cancels an in-flight fetch. Check between chunks or the rest of this file still gets written into the gone path.
+    if (job.currentItemCancelled) {
+      throw new Error('upload cancelled');
+    }
+
     job.uploadProgress = `Uploading ${file.name} (${chunkIndex + 1}/${totalChunks})…`;
     broadcastState();
 
@@ -205,6 +215,7 @@ async function processQueue(job) {
     job.currentItemKind = kind || 'file';
     job.currentItemParentPath = parentPath;
     job.currentUploadId = undefined;
+    job.currentItemCancelled = false;
     broadcastState();
 
     try {
@@ -221,6 +232,11 @@ async function processQueue(job) {
         return;
       }
 
+      if (job.currentItemCancelled) {
+        await cleanupAbortedChunkUpload(job);
+        continue;
+      }
+
       if (error instanceof UploadSessionGoneError) {
         const droppedCount = job.queue.length + 1;
 
@@ -228,12 +244,13 @@ async function processQueue(job) {
         broadcastState({
           error: `${file.name}: ${error.message} (${droppedCount} upload${droppedCount === 1 ? '' : 's'} dropped).`,
         });
-        abandonCurrentJob();
+        await abandonCurrentJob();
 
         return;
       }
 
       console.error(error);
+      await cleanupAbortedChunkUpload(job);
       broadcastState({ error: `${file.name}: ${String(error?.message || error)}` });
     }
   }
@@ -250,7 +267,7 @@ self.addEventListener('message', (event) => {
   }
 
   if (message.type === 'ABORT_UPLOADS') {
-    abandonCurrentJob();
+    event.waitUntil(abandonCurrentJob());
     return;
   }
 
@@ -264,7 +281,7 @@ self.addEventListener('message', (event) => {
   }
 
   if (currentJob && message.sessionTag !== currentJob.sessionTag) {
-    abandonCurrentJob();
+    event.waitUntil(abandonCurrentJob());
   }
 
   if (message.type === 'ENQUEUE_UPLOAD') {

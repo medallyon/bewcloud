@@ -53,11 +53,14 @@ export default function MainPhotos(
 
   // Helper function to get the target path for a file (considering webkitRelativePath)
   function getTargetPath(file: File): string {
-    if ((file as any).webkitRelativePath) {
-      const directoryPath = (file as any).webkitRelativePath.replace(file.name, '');
-      return directoryPath ? `${path.value}${directoryPath}`.replace(/\/+$/, '') : path.value;
+    if (!(file as any).webkitRelativePath) {
+      return path.value;
     }
-    return path.value;
+
+    // Resolve the parent path, keeping any sub-directory structure from directory uploads.
+    // We don't need to worry about path joining here, the API will handle it (and make sure it's secure)
+    const directoryPath = (file as any).webkitRelativePath.slice(0, -file.name.length);
+    return `${path.value}${directoryPath}`;
   }
 
   // Resolves a naming conflict for a single file, prompting the user unless already in "replace all" mode. Returns whether the file should be uploaded.

@@ -1,7 +1,7 @@
 import { serveFile } from '@std/http/file-server';
 
 import { isRunningLocally as isAppRunningLocally } from '/public/ts/utils/misc.ts';
-import { resolveSafePublicFilePath, serveFileWithSass, serveFileWithTs } from '/lib/utils/misc.ts';
+import { resolveSafePublicFilePath, serveFileWithTs } from '/lib/utils/misc.ts';
 import { getDataFromRequest } from '/lib/auth.ts';
 import { Page } from '/lib/page.ts';
 
@@ -215,7 +215,16 @@ const routes: Routes = {
         if (fileExtension === 'ts') {
           response = await serveFileWithTs(request, absolutePath);
         } else if (fileExtension === 'scss') {
-          response = await serveFileWithSass(request, absolutePath);
+          // Temporary: stale clients still request /public/scss/*.scss after the denosass removal.
+          const cssRelativePath = relativePath.replace(/\.scss$/i, '.css').replace(/^scss\//, 'css/');
+          const resolvedCssPath = resolveSafePublicFilePath(cssRelativePath);
+
+          if (!resolvedCssPath) {
+            return new Response('Not Found', { status: 404 });
+          }
+
+          response = await serveFile(request, resolvedCssPath.absolutePath);
+          response.headers.set('content-type', 'text/css; charset=utf-8');
         } else {
           response = await serveFile(request, absolutePath);
 

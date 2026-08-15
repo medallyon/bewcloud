@@ -5,6 +5,7 @@ import { Directory, DirectoryFile } from '/lib/types.ts';
 import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
 import { RequestBody as GetFilesRequestBody, ResponseBody as GetFilesResponseBody } from '/pages/api/files/get.ts';
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 
 // 10 MB chunks keep each request faster.
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
@@ -24,31 +25,6 @@ interface UseUploadQueueOptions {
   // Skip the built-in "already exists" skip-with-error check for callers (like MainFiles) that already resolved
   // name conflicts with the user (replace/skip/replace-all) before calling enqueueUpload.
   checkExistingFiles?: boolean;
-}
-
-// Messages go to the registration's active worker instead of `navigator.serviceWorker.controller`, because a freshly-installed worker is already active while `controller` is still null until its `clients.claim()` lands, which would silently skip the service worker for the first upload after a hard load.
-export async function postToUploadServiceWorker(message: Record<string, unknown>): Promise<boolean> {
-  if (!('serviceWorker' in navigator)) {
-    return false;
-  }
-
-  try {
-    const registration = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
-    ]);
-
-    if (!registration?.active) {
-      return false;
-    }
-
-    registration.active.postMessage(message);
-
-    return true;
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
 }
 
 // Uploads run inside a service worker (public/sw.js) so they survive a page refresh. This tab just enqueues files and listens for progress here; on mount it also queries whether a job is already running (e.g. right after a refresh) to hydrate the UI from it.
@@ -152,44 +128,52 @@ export function useUploadQueue(
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE_BYTES);
     const uploadId = crypto.randomUUID();
 
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      uploadProgress.value = `Uploading ${file.name} (${chunkIndex + 1}/${totalChunks})…`;
+    try {
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        uploadProgress.value = `Uploading ${file.name} (${chunkIndex + 1}/${totalChunks})…`;
 
-      const start = chunkIndex * CHUNK_SIZE_BYTES;
-      const end = Math.min(start + CHUNK_SIZE_BYTES, file.size);
-      const chunkBlob = file.slice(start, end);
+        const start = chunkIndex * CHUNK_SIZE_BYTES;
+        const end = Math.min(start + CHUNK_SIZE_BYTES, file.size);
+        const chunkBlob = file.slice(start, end);
 
-      const requestBody = new FormData();
-      requestBody.set('upload_id', uploadId);
-      requestBody.set('chunk_index', String(chunkIndex));
-      requestBody.set('total_chunks', String(totalChunks));
-      requestBody.set('path_in_view', pathInView);
-      requestBody.set('parent_path', parentPath);
-      requestBody.set('name', file.name);
-      requestBody.set('upload_session_tag', uploadSessionTag);
-      requestBody.set('chunk', chunkBlob);
+        const requestBody = new FormData();
+        requestBody.set('upload_id', uploadId);
+        requestBody.set('chunk_index', String(chunkIndex));
+        requestBody.set('total_chunks', String(totalChunks));
+        requestBody.set('path_in_view', pathInView);
+        requestBody.set('parent_path', parentPath);
+        requestBody.set('name', file.name);
+        requestBody.set('upload_session_tag', uploadSessionTag);
+        requestBody.set('chunk', chunkBlob);
 
-      const response = await fetch(`/api/files/upload-chunk`, {
+        const response = await fetch(`/api/files/upload-chunk`, {
+          method: 'POST',
+          body: requestBody,
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`,
+          );
+        }
+
+        const result = await response.json() as ChunkUploadResponseBody;
+
+        if (!result.success) {
+          throw new Error(result.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
+        }
+
+        if (result.isComplete) {
+          files.value = [...result.newFiles!];
+          directories.value = [...result.newDirectories!];
+        }
+      }
+    } catch (error) {
+      fetch('/api/files/upload-abort', {
         method: 'POST',
-        body: requestBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`,
-        );
-      }
-
-      const result = await response.json() as ChunkUploadResponseBody;
-
-      if (!result.success) {
-        throw new Error(result.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
-      }
-
-      if (result.isComplete) {
-        files.value = [...result.newFiles!];
-        directories.value = [...result.newDirectories!];
-      }
+        body: JSON.stringify({ upload_id: uploadId, upload_session_tag: uploadSessionTag }),
+      }).catch(() => {});
+      throw error;
     }
   }
 

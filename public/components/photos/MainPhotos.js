@@ -25,11 +25,11 @@ export default function MainPhotos({
     return existingFiles.some(file => file.file_name === fileName && file.parent_path === targetPath);
   }
   function getTargetPath(file) {
-    if (file.webkitRelativePath) {
-      const directoryPath = file.webkitRelativePath.replace(file.name, '');
-      return directoryPath ? `${path.value}${directoryPath}`.replace(/\/+$/, '') : path.value;
+    if (!file.webkitRelativePath) {
+      return path.value;
     }
-    return path.value;
+    const directoryPath = file.webkitRelativePath.slice(0, -file.name.length);
+    return `${path.value}${directoryPath}`;
   }
   function resolveFileConflict(file, targetPath) {
     if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {

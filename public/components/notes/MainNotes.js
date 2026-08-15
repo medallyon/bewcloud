@@ -1,5 +1,6 @@
 import { useSignal } from '@preact/signals';
-import { postToUploadServiceWorker, useUploadQueue } from "/public/components/files/useUploadQueue.js";
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+import { useUploadQueue } from "/public/components/files/useUploadQueue.js";
 import ListFiles from "/public/components/files/ListFiles.js";
 import FilesBreadcrumb from "/public/components/files/FilesBreadcrumb.js";
 import CreateDirectoryModal from "/public/components/files/CreateDirectoryModal.js";

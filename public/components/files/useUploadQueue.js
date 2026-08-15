@@ -1,22 +1,7 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
-export async function postToUploadServiceWorker(message) {
-  if (!('serviceWorker' in navigator)) {
-    return false;
-  }
-  try {
-    const registration = await Promise.race([navigator.serviceWorker.ready, new Promise(resolve => setTimeout(resolve, 5_000))]);
-    if (!registration?.active) {
-      return false;
-    }
-    registration.active.postMessage(message);
-    return true;
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-}
 export function useUploadQueue({
   isEnabled,
   path,
@@ -87,35 +72,46 @@ export function useUploadQueue({
   async function uploadFileChunked(file, parentPath, pathInView) {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE_BYTES);
     const uploadId = crypto.randomUUID();
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      uploadProgress.value = `Uploading ${file.name} (${chunkIndex + 1}/${totalChunks})…`;
-      const start = chunkIndex * CHUNK_SIZE_BYTES;
-      const end = Math.min(start + CHUNK_SIZE_BYTES, file.size);
-      const chunkBlob = file.slice(start, end);
-      const requestBody = new FormData();
-      requestBody.set('upload_id', uploadId);
-      requestBody.set('chunk_index', String(chunkIndex));
-      requestBody.set('total_chunks', String(totalChunks));
-      requestBody.set('path_in_view', pathInView);
-      requestBody.set('parent_path', parentPath);
-      requestBody.set('name', file.name);
-      requestBody.set('upload_session_tag', uploadSessionTag);
-      requestBody.set('chunk', chunkBlob);
-      const response = await fetch(`/api/files/upload-chunk`, {
+    try {
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        uploadProgress.value = `Uploading ${file.name} (${chunkIndex + 1}/${totalChunks})…`;
+        const start = chunkIndex * CHUNK_SIZE_BYTES;
+        const end = Math.min(start + CHUNK_SIZE_BYTES, file.size);
+        const chunkBlob = file.slice(start, end);
+        const requestBody = new FormData();
+        requestBody.set('upload_id', uploadId);
+        requestBody.set('chunk_index', String(chunkIndex));
+        requestBody.set('total_chunks', String(totalChunks));
+        requestBody.set('path_in_view', pathInView);
+        requestBody.set('parent_path', parentPath);
+        requestBody.set('name', file.name);
+        requestBody.set('upload_session_tag', uploadSessionTag);
+        requestBody.set('chunk', chunkBlob);
+        const response = await fetch(`/api/files/upload-chunk`, {
+          method: 'POST',
+          body: requestBody
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`);
+        }
+        const result = await response.json();
+        if (!result.success) {
+          throw new Error(result.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
+        }
+        if (result.isComplete) {
+          files.value = [...result.newFiles];
+          directories.value = [...result.newDirectories];
+        }
+      }
+    } catch (error) {
+      fetch('/api/files/upload-abort', {
         method: 'POST',
-        body: requestBody
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}!`);
-      }
-      if (result.isComplete) {
-        files.value = [...result.newFiles];
-        directories.value = [...result.newDirectories];
-      }
+        body: JSON.stringify({
+          upload_id: uploadId,
+          upload_session_tag: uploadSessionTag
+        })
+      }).catch(() => {});
+      throw error;
     }
   }
   async function findExistingNames(parentPath) {

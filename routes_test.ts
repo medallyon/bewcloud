@@ -50,3 +50,12 @@ Deno.test('that PROPFIND on /dav (no filePath) and /dav/ are both handled direct
     assertEquals(response.status, 401);
   }
 });
+
+Deno.test('that stale /public/scss/*.scss requests are served as the css file', async () => {
+  const url = 'http://localhost:8000/public/scss/style.scss';
+  const match = routes.public.pattern.exec(url)!;
+  const response = await routes.public.handler(new Request(url), match);
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get('content-type')?.includes('text/css'), true);
+});

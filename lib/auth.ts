@@ -159,6 +159,18 @@ export async function generateUploadSessionTag(sessionId?: string): Promise<stri
   return await generateHash(`${sessionId}:${PASSWORD_SALT}`, 'SHA-256');
 }
 
+// Cookie sessions must send a matching tag. No session (basic auth) skips the check, including empty tags.
+export async function isUploadSessionTagValid(
+  uploadSessionTag: string | null | undefined,
+  sessionId?: string,
+): Promise<boolean> {
+  if (!sessionId) {
+    return true;
+  }
+
+  return uploadSessionTag === await generateUploadSessionTag(sessionId);
+}
+
 export async function generateToken<T = JwtData>(tokenData: T): Promise<string> {
   const key = await generateKey(JWT_SECRET);
 

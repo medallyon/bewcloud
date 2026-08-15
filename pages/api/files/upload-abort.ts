@@ -2,7 +2,7 @@ import { join } from '@std/path';
 
 import page, { RequestHandlerParams } from '/lib/page.ts';
 import { AppConfig } from '/lib/config.ts';
-import { generateUploadSessionTag } from '/lib/auth.ts';
+import { isUploadSessionTagValid } from '/lib/auth.ts';
 
 export interface RequestBody {
   upload_id: string;
@@ -20,7 +20,7 @@ async function post({ request, user, session }: RequestHandlerParams) {
   const uploadId = requestBody.upload_id;
   const uploadSessionTag = requestBody.upload_session_tag;
 
-  if (uploadSessionTag && uploadSessionTag !== await generateUploadSessionTag(session?.tokenData?.session_id)) {
+  if (!await isUploadSessionTagValid(uploadSessionTag, session?.tokenData?.session_id)) {
     return new Response('Forbidden', { status: 403 });
   }
 

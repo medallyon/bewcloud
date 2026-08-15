@@ -12,9 +12,7 @@ This repo is originally maintained on [GitHub](https://github.com/bewcloud/bewcl
 
 ## Self-host it!
 
-[![Buy managed cloud VPS](https://img.shields.io/badge/Buy%20managed%20cloud%20VPS-51a4fb?style=for-the-badge)](https://bewcloud.com/managed-cloud/)
-
-Or, to run on your own machine, start with these commands:
+To run on your own machine/server, start with these commands:
 
 ```sh
 mkdir data-files data-radicale radicale-config # local directories for storing user-uploaded files, radicale data, and radicale config (these last two are necessary only if you're using CalDav/CardDav/Contacts)

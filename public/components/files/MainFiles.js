@@ -1,6 +1,7 @@
 import { useSignal } from '@preact/signals';
 import { sortDirectories, sortFiles } from '/public/ts/utils/files.ts';
-import { postToUploadServiceWorker, useUploadQueue } from "./useUploadQueue.js";
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+import { useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
 import ListFiles from "./ListFiles.js";
 import FilesBreadcrumb from "./FilesBreadcrumb.js";
@@ -51,11 +52,11 @@ export default function MainFiles({
     return existingFiles.some(file => file.file_name === fileName && file.parent_path === targetPath);
   }
   function getTargetPath(file) {
-    if (file.webkitRelativePath) {
-      const directoryPath = file.webkitRelativePath.replace(file.name, '');
-      return directoryPath ? `${path.value}${directoryPath}`.replace(/\/+$/, '') : path.value;
+    if (!file.webkitRelativePath) {
+      return path.value;
     }
-    return path.value;
+    const directoryPath = file.webkitRelativePath.slice(0, -file.name.length);
+    return `${path.value}${directoryPath}`;
   }
   function resolveFileConflict(file, targetPath) {
     if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
@@ -96,6 +97,13 @@ export default function MainFiles({
     uploadKind: 'file',
     checkExistingFiles: false
   });
+  function notifyDirectoryGone(parentPath, name) {
+    return postToUploadServiceWorker({
+      type: 'DIRECTORY_DELETED',
+      sessionTag: uploadSessionTag ?? '',
+      path: `${parentPath}${name}/`
+    });
+  }
   function onClickSort(column) {
     let newSortOrder = 'asc';
     if (sortBy.value === column) {
@@ -382,6 +390,7 @@ export default function MainFiles({
         throw new Error('Failed to rename directory!');
       }
       directories.value = [...result.newDirectories];
+      await notifyDirectoryGone(requestBody.parentPath, requestBody.oldName);
     } catch (error) {
       console.error(error);
     }
@@ -459,6 +468,7 @@ export default function MainFiles({
         throw new Error('Failed to move directory!');
       }
       directories.value = [...result.newDirectories];
+      await notifyDirectoryGone(requestBody.oldParentPath, requestBody.name);
     } catch (error) {
       console.error(error);
     }
@@ -526,11 +536,7 @@ export default function MainFiles({
           throw new Error('Failed to delete directory!');
         }
         directories.value = [...result.newDirectories];
-        await postToUploadServiceWorker({
-          type: 'DIRECTORY_DELETED',
-          sessionTag: uploadSessionTag ?? '',
-          path: `${parentPath}${name}/`
-        });
+        await notifyDirectoryGone(parentPath, name);
       } catch (error) {
         console.error(error);
       }

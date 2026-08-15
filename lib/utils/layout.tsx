@@ -47,7 +47,7 @@ async function basicLayout(
         <link rel="icon" href="/public/images/favicon-dark.png" type="image/png" />
         <link rel="apple-touch-icon" href="/public/images/favicon-dark.png" />
         <link rel="manifest" href="/public/manifest.json" />
-        <link rel="stylesheet" href="/public/scss/style.scss" />
+        <link rel="stylesheet" href="/public/css/style.css" />
         <link rel="stylesheet" href="/public/css/tailwind.css" />
       </head>
 
@@ -58,11 +58,9 @@ async function basicLayout(
       <body class="h-full">
         ${headerHtml} ${htmlContent}
 
-        <script>
-          // Tell the upload service worker to abort its queue before navigating away, instead of letting it keep running against a session that's about to be gone.
-          document.getElementById('logout-link')?.addEventListener('click', () => {
-            navigator.serviceWorker?.controller?.postMessage({ type: 'ABORT_UPLOADS' });
-          });
+        <script type="module">
+          import { bindUploadLogoutAbort } from '/public/ts/service-worker.ts';
+          bindUploadLogoutAbort();
         </script>
       </body>
     </html>
