@@ -80,6 +80,7 @@ export default function Header({
       class: "white"
     })), h("a", {
       href: "/logout",
+      id: "logout-link",
       class: defaultClass
     }, h("img", {
       src: "/public/images/logout.svg",

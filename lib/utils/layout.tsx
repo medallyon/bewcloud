@@ -47,7 +47,7 @@ async function basicLayout(
         <link rel="icon" href="/public/images/favicon-dark.png" type="image/png" />
         <link rel="apple-touch-icon" href="/public/images/favicon-dark.png" />
         <link rel="manifest" href="/public/manifest.json" />
-        <link rel="stylesheet" href="/public/scss/style.scss" />
+        <link rel="stylesheet" href="/public/css/style.css" />
         <link rel="stylesheet" href="/public/css/tailwind.css" />
       </head>
 
@@ -57,6 +57,11 @@ async function basicLayout(
 
       <body class="h-full">
         ${headerHtml} ${htmlContent}
+
+        <script type="module">
+          import { bindUploadLogoutAbort } from '/public/ts/service-worker.ts';
+          bindUploadLogoutAbort();
+        </script>
       </body>
     </html>
   `;
@@ -81,7 +86,7 @@ export async function basicLayoutResponse(htmlContent: string, options: BasicLay
   const headers: HeadersInit = {
     'content-type': 'text/html; charset=utf-8',
     'content-security-policy':
-      `default-src 'self'; child-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'`,
+      `default-src 'self'; child-src 'none'; worker-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'`,
     'x-frame-options': 'DENY',
     'x-content-type-options': 'nosniff',
     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',

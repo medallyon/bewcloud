@@ -150,6 +150,27 @@ async function getDataFromCookie(
   return null;
 }
 
+// The upload service worker's queue outlives the page that created it, so every queued request is tagged with the session that enqueued it, and the upload endpoints refuse tags that don't match the cookie they're now being sent with. It's a hash so a page never exposes the raw session id to its own JS.
+export async function generateUploadSessionTag(sessionId?: string): Promise<string> {
+  if (!sessionId) {
+    return '';
+  }
+
+  return await generateHash(`${sessionId}:${PASSWORD_SALT}`, 'SHA-256');
+}
+
+// Cookie sessions must send a matching tag. No session (basic auth) skips the check, including empty tags.
+export async function isUploadSessionTagValid(
+  uploadSessionTag: string | null | undefined,
+  sessionId?: string,
+): Promise<boolean> {
+  if (!sessionId) {
+    return true;
+  }
+
+  return uploadSessionTag === await generateUploadSessionTag(sessionId);
+}
+
 export async function generateToken<T = JwtData>(tokenData: T): Promise<string> {
   const key = await generateKey(JWT_SECRET);
 

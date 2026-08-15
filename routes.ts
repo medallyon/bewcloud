@@ -1,7 +1,7 @@
 import { serveFile } from '@std/http/file-server';
 
 import { isRunningLocally as isAppRunningLocally } from '/public/ts/utils/misc.ts';
-import { resolveSafePublicFilePath, serveFileWithSass, serveFileWithTs } from '/lib/utils/misc.ts';
+import { resolveSafePublicFilePath, serveFileWithTs } from '/lib/utils/misc.ts';
 import { getDataFromRequest } from '/lib/auth.ts';
 import { Page } from '/lib/page.ts';
 
@@ -215,16 +215,36 @@ const routes: Routes = {
         if (fileExtension === 'ts') {
           response = await serveFileWithTs(request, absolutePath);
         } else if (fileExtension === 'scss') {
-          response = await serveFileWithSass(request, absolutePath);
+          // Temporary: stale clients still request /public/scss/*.scss after the denosass removal.
+          const cssRelativePath = relativePath.replace(/\.scss$/i, '.css').replace(/^scss\//, 'css/');
+          const resolvedCssPath = resolveSafePublicFilePath(cssRelativePath);
+
+          if (!resolvedCssPath) {
+            return new Response('Not Found', { status: 404 });
+          }
+
+          response = await serveFile(request, resolvedCssPath.absolutePath);
+          response.headers.set('content-type', 'text/css; charset=utf-8');
         } else {
           response = await serveFile(request, absolutePath);
 
           if (relativePath.startsWith('js/')) {
             response.headers.set('content-type', 'application/javascript; charset=utf-8');
           }
+
+          // The upload service worker is served from under /public/, but needs root scope to observe navigations/API requests across the whole app, not just /public/.
+          if (relativePath === 'sw.js') {
+            response.headers.set('content-type', 'application/javascript; charset=utf-8');
+            response.headers.set('service-worker-allowed', '/');
+          }
         }
 
-        response.headers.set('cache-control', `max-age=${oneDayInSeconds}, public`);
+        // Compiled component JS imports other compiled files by path, so a stale cached copy can reference a file that no longer exists after a rebuild (e.g. a renamed/removed component); same risk for the service worker script itself. 'no-cache' still lets the browser reuse the cached body via a 304 (serveFile sets an ETag), it just forces a revalidation request first.
+        const isServedFromComponentsPath = relativePath.startsWith('components/');
+        response.headers.set(
+          'cache-control',
+          (relativePath === 'sw.js' || isServedFromComponentsPath) ? 'no-cache' : `max-age=${oneDayInSeconds}, public`,
+        );
         return response;
       } catch (error) {
         if ((error as Error).toString().includes('NotFound')) {
@@ -368,6 +388,7 @@ const routes: Routes = {
   apiFilesUpdateShare: createPageRouteHandler('api/files/update-share.ts', '/api/files/update-share'),
   apiFilesUpdateSort: createPageRouteHandler('api/files/update-sort.ts', '/api/files/update-sort'),
   apiFilesUpload: createPageRouteHandler('api/files/upload.ts', '/api/files/upload'),
+  apiFilesUploadAbort: createPageRouteHandler('api/files/upload-abort.ts', '/api/files/upload-abort'),
   apiFilesUploadChunk: createPageRouteHandler('api/files/upload-chunk.ts', '/api/files/upload-chunk'),
 
   apiNewsAddFeed: createPageRouteHandler('api/news/add-feed.ts', '/api/news/add-feed'),

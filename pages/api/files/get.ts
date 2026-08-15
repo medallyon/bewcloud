@@ -18,7 +18,7 @@ async function post({ request, user }: RequestHandlerParams) {
     !(await AppConfig.isAppEnabled('files')) && !(await AppConfig.isAppEnabled('photos')) &&
     !(await AppConfig.isAppEnabled('notes'))
   ) {
-    return new Response('Forbidden', { status: 403 });
+    return new Response('Service Unavailable', { status: 503 });
   }
 
   const requestBody = await request.clone().json() as RequestBody;
