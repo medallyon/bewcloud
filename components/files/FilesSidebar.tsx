@@ -78,34 +78,38 @@ export default function FilesSidebar(
         )
         : null}
 
-      {directories.length > 0
+      {/* Trash has its own dedicated link above, so it's excluded here to avoid listing it twice */}
+      {directories.filter((directory) => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH)
+          .length > 0
         ? (
           <ol
             class='mt-2 flex flex-col gap-1 border-t border-slate-700 pt-2'
             style={{ paddingLeft: `${ancestors.length * 0.75}rem` }}
           >
-            {directories.map((directory) => {
-              const directoryPath = `${directory.parent_path}${directory.directory_name}/`;
+            {directories
+              .filter((directory) => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH)
+              .map((directory) => {
+                const directoryPath = `${directory.parent_path}${directory.directory_name}/`;
 
-              return (
-                <li key={directoryPath} {...dropProps(directoryPath)}>
-                  <a
-                    href={hrefFor(directoryPath)}
-                    class={`${linkClass} ${defaultLinkClass}`}
-                    title={directory.directory_name}
-                  >
-                    <img
-                      src={`/public/images/${directoryPath === TRASH_PATH ? 'trash' : 'directory'}.svg`}
-                      alt=''
-                      class='white shrink-0'
-                      width={18}
-                      height={18}
-                    />
-                    {directory.directory_name}
-                  </a>
-                </li>
-              );
-            })}
+                return (
+                  <li key={directoryPath} {...dropProps(directoryPath)}>
+                    <a
+                      href={hrefFor(directoryPath)}
+                      class={`${linkClass} ${defaultLinkClass}`}
+                      title={directory.directory_name}
+                    >
+                      <img
+                        src='/public/images/directory.svg'
+                        alt=''
+                        class='white shrink-0'
+                        width={18}
+                        height={18}
+                      />
+                      {directory.directory_name}
+                    </a>
+                  </li>
+                );
+              })}
           </ol>
         )
         : null}

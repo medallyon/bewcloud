@@ -68,12 +68,12 @@ export default function FilesSidebar({
     class: "white shrink-0",
     width: 18,
     height: 18
-  }), ancestor.name)))) : null, directories.length > 0 ? h("ol", {
+  }), ancestor.name)))) : null, directories.filter(directory => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).length > 0 ? h("ol", {
     class: "mt-2 flex flex-col gap-1 border-t border-slate-700 pt-2",
     style: {
       paddingLeft: `${ancestors.length * 0.75}rem`
     }
-  }, directories.map(directory => {
+  }, directories.filter(directory => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).map(directory => {
     const directoryPath = `${directory.parent_path}${directory.directory_name}/`;
     return h("li", _extends({
       key: directoryPath
@@ -82,7 +82,7 @@ export default function FilesSidebar({
       class: `${linkClass} ${defaultLinkClass}`,
       title: directory.directory_name
     }, h("img", {
-      src: `/public/images/${directoryPath === TRASH_PATH ? 'trash' : 'directory'}.svg`,
+      src: "/public/images/directory.svg",
       alt: "",
       class: "white shrink-0",
       width: 18,
