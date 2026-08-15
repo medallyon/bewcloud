@@ -41,7 +41,7 @@ export default function FilesItemMenu({
   }
   if (onClickDelete) {
     entries.push({
-      label: item.isTrash ? 'Empty trash' : 'Delete',
+      label: 'Delete',
       onClick: () => onClickDelete(item),
       isDangerous: true
     });

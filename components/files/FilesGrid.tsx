@@ -78,7 +78,7 @@ export default function FilesGrid({
                   : (
                     <span class='flex flex-col items-center gap-1'>
                       <img
-                        src={`/public/images/${item.isTrash ? 'trash' : item.isDirectory ? 'directory' : 'file'}.svg`}
+                        src={`/public/images/${item.isDirectory ? 'directory' : 'file'}.svg`}
                         alt={item.isDirectory ? 'Directory' : 'File'}
                         class='white opacity-80'
                         width={32}
@@ -103,10 +103,10 @@ export default function FilesGrid({
                 <span class='block text-xs text-slate-400'>{humanFileSize(item.sizeInBytes)}</span>
               </a>
 
-              {item.isTrash ? null : <FilesItemMenu item={item} {...actions} />}
+              <FilesItemMenu item={item} {...actions} />
             </footer>
 
-            {isSelectable && !item.isTrash
+            {isSelectable
               ? (
                 <input
                   class='absolute left-2 top-2 h-4 w-4 cursor-pointer rounded border-slate-300 bg-slate-100 text-accent'

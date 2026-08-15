@@ -170,7 +170,7 @@ export function useInternalDragAndDrop(
   }
 
   function getItemDragProps(item: FileItem): ItemDragProps | undefined {
-    if (!isPointerPrecise.value || item.isTrash) {
+    if (!isPointerPrecise.value) {
       return undefined;
     }
 

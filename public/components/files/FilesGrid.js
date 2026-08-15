@@ -43,7 +43,7 @@ export default function FilesGrid({
     }) : h("span", {
       class: "flex flex-col items-center gap-1"
     }, h("img", {
-      src: `/public/images/${item.isTrash ? 'trash' : item.isDirectory ? 'directory' : 'file'}.svg`,
+      src: `/public/images/${item.isDirectory ? 'directory' : 'file'}.svg`,
       alt: item.isDirectory ? 'Directory' : 'File',
       class: "white opacity-80",
       width: 32,
@@ -61,9 +61,9 @@ export default function FilesGrid({
       class: "line-clamp-2 break-all"
     }, item.name), h("span", {
       class: "block text-xs text-slate-400"
-    }, humanFileSize(item.sizeInBytes))), item.isTrash ? null : h(FilesItemMenu, _extends({
+    }, humanFileSize(item.sizeInBytes))), h(FilesItemMenu, _extends({
       item: item
-    }, actions))), isSelectable && !item.isTrash ? h("input", {
+    }, actions))), isSelectable ? h("input", {
       class: "absolute left-2 top-2 h-4 w-4 cursor-pointer rounded border-slate-300 bg-slate-100 text-accent",
       type: "checkbox",
       onClick: () => onToggleChoose?.(item),

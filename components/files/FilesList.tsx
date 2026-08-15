@@ -115,15 +115,13 @@ export default function FilesList({
             {isSelectable
               ? (
                 <td class='pl-4 pr-2 py-3'>
-                  {item.isTrash ? null : (
-                    <input
-                      class='h-4 w-4 cursor-pointer rounded border-slate-300 bg-slate-100 text-accent'
-                      type='checkbox'
-                      onClick={() => onToggleChoose?.(item)}
-                      checked={chosenKeysSet.has(item.key)}
-                      title={`Select ${item.name}`}
-                    />
-                  )}
+                  <input
+                    class='h-4 w-4 cursor-pointer rounded border-slate-300 bg-slate-100 text-accent'
+                    type='checkbox'
+                    onClick={() => onToggleChoose?.(item)}
+                    checked={chosenKeysSet.has(item.key)}
+                    title={`Select ${item.name}`}
+                  />
                 </td>
               )
               : null}
@@ -135,7 +133,7 @@ export default function FilesList({
                 rel={item.isDirectory ? undefined : 'noopener noreferrer'}
               >
                 <img
-                  src={`/public/images/${item.isTrash ? 'trash' : item.isDirectory ? 'directory' : 'file'}.svg`}
+                  src={`/public/images/${item.isDirectory ? 'directory' : 'file'}.svg`}
                   class='white shrink-0 drop-shadow-md'
                   width={18}
                   height={18}
@@ -148,7 +146,7 @@ export default function FilesList({
             <td class='hidden md:table-cell px-4 py-3'>{dateFormat.format(new Date(item.updatedAt))}</td>
             <td class='px-4 py-3'>{humanFileSize(item.sizeInBytes)}</td>
             <td class='px-2 py-3'>
-              {item.isTrash ? null : <FilesItemMenu item={item} {...actions} />}
+              <FilesItemMenu item={item} {...actions} />
             </td>
           </tr>
         ))}

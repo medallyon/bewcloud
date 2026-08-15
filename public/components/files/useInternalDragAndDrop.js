@@ -111,7 +111,7 @@ export function useInternalDragAndDrop({
     isMoving.value = false;
   }
   function getItemDragProps(item) {
-    if (!isPointerPrecise.value || item.isTrash) {
+    if (!isPointerPrecise.value) {
       return undefined;
     }
     return {

@@ -76,7 +76,7 @@ export default function FilesList({
     class: `bg-slate-700 hover:bg-slate-600 ${dragAndDrop?.dropTargetPath === item.fullPath ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`
   }, dragAndDrop?.getItemDragProps(item), item.isDirectory && dragAndDrop ? dragAndDrop.getDropTargetProps(item.fullPath) : {}), isSelectable ? h("td", {
     class: "pl-4 pr-2 py-3"
-  }, item.isTrash ? null : h("input", {
+  }, h("input", {
     class: "h-4 w-4 cursor-pointer rounded border-slate-300 bg-slate-100 text-accent",
     type: "checkbox",
     onClick: () => onToggleChoose?.(item),
@@ -90,7 +90,7 @@ export default function FilesList({
     target: item.isDirectory ? undefined : '_blank',
     rel: item.isDirectory ? undefined : 'noopener noreferrer'
   }, h("img", {
-    src: `/public/images/${item.isTrash ? 'trash' : item.isDirectory ? 'directory' : 'file'}.svg`,
+    src: `/public/images/${item.isDirectory ? 'directory' : 'file'}.svg`,
     class: "white shrink-0 drop-shadow-md",
     width: 18,
     height: 18,
@@ -104,7 +104,7 @@ export default function FilesList({
     class: "px-4 py-3"
   }, humanFileSize(item.sizeInBytes)), h("td", {
     class: "px-2 py-3"
-  }, item.isTrash ? null : h(FilesItemMenu, _extends({
+  }, h(FilesItemMenu, _extends({
     item: item
   }, actions)))))));
 }

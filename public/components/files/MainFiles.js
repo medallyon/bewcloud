@@ -106,8 +106,7 @@ export default function MainFiles({
     view: fileShareId ? undefined : view.value
   });
   const chosenKeys = [...chosenDirectories.value.map(directory => `${directory.parent_path}${directory.directory_name}/`), ...chosenFiles.value.map(file => `${file.parent_path}${file.file_name}`)];
-  const choosableItemsCount = items.filter(item => !item.isTrash).length;
-  const areAllItemsChosen = chosenKeys.length > 0 && chosenKeys.length === choosableItemsCount;
+  const areAllItemsChosen = chosenKeys.length > 0 && chosenKeys.length === items.length;
   const areSomeItemsChosen = chosenKeys.length > 0 && !areAllItemsChosen;
   const dragAndDrop = useInternalDragAndDrop({
     path,
@@ -393,9 +392,6 @@ export default function MainFiles({
     };
   }
   function onToggleChoose(item) {
-    if (item.isTrash) {
-      return;
-    }
     if (item.isDirectory) {
       const chosenDirectoryIndex = chosenDirectories.value.findIndex(directory => directory.parent_path === item.parentPath && directory.directory_name === item.name);
       if (chosenDirectoryIndex === -1) {
