@@ -8,7 +8,11 @@ interface FileConflictState {
   onReplace: () => void;
   onSkip: () => void;
   onReplaceAll: () => void;
+  onSkipAll: () => void;
+  onAbort: () => void;
 }
+
+type ConflictResolution = 'upload' | 'skip' | 'abort';
 
 interface UseDragAndDropUploadOptions {
   path: Signal<string>;
@@ -29,6 +33,7 @@ export function useDragAndDropUpload(
   const dragCounter = useSignal<number>(0);
   const fileConflictModal = useSignal<FileConflictState | null>(null);
   const replaceAllMode = useSignal<boolean>(false);
+  const skipAllMode = useSignal<boolean>(false);
 
   function getTargetPath(file: File): string {
     if (!file.webkitRelativePath) {
@@ -40,16 +45,20 @@ export function useDragAndDropUpload(
     return `${path.value}${directoryPath}`;
   }
 
-  // Resolves a naming conflict for a single file, prompting the user unless already in "replace all" mode. Returns whether the file should be uploaded.
+  // Resolves a naming conflict for a single file, prompting the user unless already in "replace all"/"skip all" mode.
   function resolveFileConflict(
     file: File,
     targetPath: string,
     existingNamesByPath: Map<string, Set<string>>,
-  ): Promise<boolean> {
+  ): Promise<ConflictResolution> {
     const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
 
-    if (replaceAllMode.value || !fileExists) {
-      return Promise.resolve(true);
+    if (!fileExists || replaceAllMode.value) {
+      return Promise.resolve('upload');
+    }
+
+    if (skipAllMode.value) {
+      return Promise.resolve('skip');
     }
 
     return new Promise((resolve) => {
@@ -58,16 +67,25 @@ export function useDragAndDropUpload(
         existingFileName: file.name,
         onReplace: () => {
           fileConflictModal.value = null;
-          resolve(true);
+          resolve('upload');
         },
         onSkip: () => {
           fileConflictModal.value = null;
-          resolve(false);
+          resolve('skip');
         },
         onReplaceAll: () => {
           replaceAllMode.value = true;
           fileConflictModal.value = null;
-          resolve(true);
+          resolve('upload');
+        },
+        onSkipAll: () => {
+          skipAllMode.value = true;
+          fileConflictModal.value = null;
+          resolve('skip');
+        },
+        onAbort: () => {
+          fileConflictModal.value = null;
+          resolve('abort');
         },
       };
     });
@@ -82,7 +100,8 @@ export function useDragAndDropUpload(
     }
 
     onBeforeUpload?.();
-    replaceAllMode.value = false; // Reset replace all mode for new upload session
+    replaceAllMode.value = false; // Reset replace/skip all mode for new upload session
+    skipAllMode.value = false;
 
     // Check every target path a dropped file will land in (not just the currently-viewed directory), so conflicts in dragged subdirectories are caught too.
     const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
@@ -96,10 +115,17 @@ export function useDragAndDropUpload(
 
     for (const file of filesToUpload) {
       const targetPath = getTargetPath(file);
-      const shouldUpload = await resolveFileConflict(file, targetPath, existingNamesByPath);
+      const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
 
-      if (shouldUpload) {
-        // Always true: a file that never conflicted writes normally (overwrite is a no-op then); a file that did conflict only gets here because the user chose Replace/Replace All.
+      if (resolution === 'abort') {
+        // Discards everything resolved so far in this batch too, not just the remaining files.
+        replaceAllMode.value = false;
+        skipAllMode.value = false;
+        return;
+      }
+
+      if (resolution === 'upload') {
+        // overwrite is always true here: a file that never conflicted writes normally (a no-op); a file that did conflict only reaches this branch because the user chose Replace/Replace All.
         itemsToUpload.push({ file, parentPath: targetPath, overwrite: true });
       }
     }
@@ -107,6 +133,7 @@ export function useDragAndDropUpload(
     await enqueueUpload(itemsToUpload);
 
     replaceAllMode.value = false;
+    skipAllMode.value = false;
   }
 
   // Process a single dropped file system entry (file or directory), tagging files with a webkitRelativePath so directory structure survives the upload, and collecting empty directory paths for the caller to create.

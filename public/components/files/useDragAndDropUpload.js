@@ -11,6 +11,7 @@ export function useDragAndDropUpload({
   const dragCounter = useSignal(0);
   const fileConflictModal = useSignal(null);
   const replaceAllMode = useSignal(false);
+  const skipAllMode = useSignal(false);
   function getTargetPath(file) {
     if (!file.webkitRelativePath) {
       return path.value;
@@ -20,8 +21,11 @@ export function useDragAndDropUpload({
   }
   function resolveFileConflict(file, targetPath, existingNamesByPath) {
     const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
-    if (replaceAllMode.value || !fileExists) {
-      return Promise.resolve(true);
+    if (!fileExists || replaceAllMode.value) {
+      return Promise.resolve('upload');
+    }
+    if (skipAllMode.value) {
+      return Promise.resolve('skip');
     }
     return new Promise(resolve => {
       fileConflictModal.value = {
@@ -29,16 +33,25 @@ export function useDragAndDropUpload({
         existingFileName: file.name,
         onReplace: () => {
           fileConflictModal.value = null;
-          resolve(true);
+          resolve('upload');
         },
         onSkip: () => {
           fileConflictModal.value = null;
-          resolve(false);
+          resolve('skip');
         },
         onReplaceAll: () => {
           replaceAllMode.value = true;
           fileConflictModal.value = null;
-          resolve(true);
+          resolve('upload');
+        },
+        onSkipAll: () => {
+          skipAllMode.value = true;
+          fileConflictModal.value = null;
+          resolve('skip');
+        },
+        onAbort: () => {
+          fileConflictModal.value = null;
+          resolve('abort');
         }
       };
     });
@@ -50,13 +63,19 @@ export function useDragAndDropUpload({
     }
     onBeforeUpload?.();
     replaceAllMode.value = false;
+    skipAllMode.value = false;
     const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
     const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
     const itemsToUpload = [];
     for (const file of filesToUpload) {
       const targetPath = getTargetPath(file);
-      const shouldUpload = await resolveFileConflict(file, targetPath, existingNamesByPath);
-      if (shouldUpload) {
+      const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
+      if (resolution === 'abort') {
+        replaceAllMode.value = false;
+        skipAllMode.value = false;
+        return;
+      }
+      if (resolution === 'upload') {
         itemsToUpload.push({
           file,
           parentPath: targetPath,
@@ -66,6 +85,7 @@ export function useDragAndDropUpload({
     }
     await enqueueUpload(itemsToUpload);
     replaceAllMode.value = false;
+    skipAllMode.value = false;
   }
   function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
     return new Promise((resolve, reject) => {
