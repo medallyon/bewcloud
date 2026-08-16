@@ -1,5 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { fetchExistingFileNames } from "./existingFileNames.js";
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 export function useDragAndDropUpload({
   path,
   isUploading,
@@ -52,6 +53,9 @@ export function useDragAndDropUpload({
         },
         onAbort: () => {
           fileConflictModal.value = null;
+          postToUploadServiceWorker({
+            type: 'ABORT_UPLOADS'
+          });
           resolve('abort');
         }
       };

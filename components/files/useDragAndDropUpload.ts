@@ -1,6 +1,7 @@
 import { Signal, useSignal } from '@preact/signals';
 
 import { fetchExistingFileNames } from './existingFileNames.ts';
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 
 interface FileConflictState {
   isOpen: boolean;
@@ -87,6 +88,8 @@ export function useDragAndDropUpload(
         },
         onAbort: () => {
           fileConflictModal.value = null;
+          // Also stops any upload the service worker already has in flight/queued
+          postToUploadServiceWorker({ type: 'ABORT_UPLOADS' });
           resolve('abort');
         },
       };
