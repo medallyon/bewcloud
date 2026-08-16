@@ -201,6 +201,8 @@ export default function MainPhotos({
     existingFileName: fileConflictModal.value?.existingFileName || '',
     onReplace: fileConflictModal.value?.onReplace || (() => {}),
     onSkip: fileConflictModal.value?.onSkip || (() => {}),
-    onReplaceAll: fileConflictModal.value?.onReplaceAll || (() => {})
+    onReplaceAll: fileConflictModal.value?.onReplaceAll || (() => {}),
+    onSkipAll: fileConflictModal.value?.onSkipAll || (() => {}),
+    onAbort: fileConflictModal.value?.onAbort || (() => {})
   }));
 }

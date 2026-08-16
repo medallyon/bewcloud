@@ -273,6 +273,8 @@ export default function MainPhotos(
         onReplace={fileConflictModal.value?.onReplace || (() => {})}
         onSkip={fileConflictModal.value?.onSkip || (() => {})}
         onReplaceAll={fileConflictModal.value?.onReplaceAll || (() => {})}
+        onSkipAll={fileConflictModal.value?.onSkipAll || (() => {})}
+        onAbort={fileConflictModal.value?.onAbort || (() => {})}
       />
     </div>
   );
