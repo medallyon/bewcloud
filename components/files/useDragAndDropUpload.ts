@@ -19,6 +19,9 @@ interface UseDragAndDropUploadOptions {
   path: Signal<string>;
   // Caller's own upload-in-progress signal (from useUploadQueue), flipped on immediately on drop so "Uploading..." shows during the tree-walk/conflict-check phase, before enqueueUpload's own progress messages take over.
   isUploading: Signal<boolean>;
+  // Caller's own progress/error signals (from useUploadQueue), reused here so a tree-walk failure (before enqueueUpload is ever reached) still shows up, and the dropped folder's name shows during the walk.
+  uploadProgress: Signal<string>;
+  uploadError: Signal<string>;
   enqueueUpload: (items: { file: File; parentPath: string; overwrite: boolean }[]) => Promise<void>;
   // Called once, right before conflict resolution starts, e.g. to close an open dropdown.
   onBeforeUpload?: () => void;
@@ -30,7 +33,8 @@ interface UseDragAndDropUploadOptions {
 
 // Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
 export function useDragAndDropUpload(
-  { path, isUploading, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }: UseDragAndDropUploadOptions,
+  { path, isUploading, uploadProgress, uploadError, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }:
+    UseDragAndDropUploadOptions,
 ) {
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
@@ -252,8 +256,20 @@ export function useDragAndDropUpload(
       return;
     }
 
-    // Immediate feedback while we walk the dropped tree below, which (for a directory with many files) can itself take a moment before uploadFiles even starts its own conflict check.
+    // Immediate feedback while we walk the dropped tree below, which (for a directory with many files) can itself take a moment before uploadFiles even starts its own conflict check. Must read entry names synchronously here (before any await), since dataTransfer.items becomes invalid once the drop event handler yields.
+    const topLevelNames = hasItems
+      ? Array.from(event.dataTransfer!.items)
+        .map((item) => item.kind === 'file' ? item.webkitGetAsEntry()?.name : undefined)
+        .filter((name): name is string => !!name)
+      : Array.from(event.dataTransfer!.files).map((file) => file.name);
+
     isUploading.value = true;
+    uploadError.value = '';
+    uploadProgress.value = topLevelNames.length === 1
+      ? `Uploading ${topLevelNames[0]}...`
+      : topLevelNames.length > 1
+      ? `Uploading ${topLevelNames.length} items...`
+      : '';
 
     try {
       if (hasItems) {
@@ -271,7 +287,9 @@ export function useDragAndDropUpload(
       }
     } catch (error) {
       console.error('Failed to process dropped files:', error);
+      uploadError.value = error instanceof Error ? error.message : String(error);
       isUploading.value = false;
+      uploadProgress.value = '';
     }
   }
 
