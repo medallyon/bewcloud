@@ -20,9 +20,7 @@ export default function FileConflictModal({
   }, "The file ", h("strong", {
     class: "text-white"
   }, existingFileName), ' ', "already exists in this location. What would you like to do?")), h("footer", {
-    class: "flex flex-col gap-2"
-  }, h("div", {
-    class: "grid grid-cols-2 gap-2"
+    class: "grid grid-cols-[1fr_1fr_auto] gap-2"
   }, h("button", {
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onReplace(),
@@ -31,11 +29,7 @@ export default function FileConflictModal({
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onReplaceAll(),
     type: "button"
-  }, "Replace All")), h("div", {
-    class: "flex gap-2 justify-between items-center"
-  }, h("div", {
-    class: "grid grid-cols-2 gap-2 flex-1"
-  }, h("button", {
+  }, "Replace All"), h("div", null), h("button", {
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onSkip(),
     type: "button"
@@ -43,9 +37,9 @@ export default function FileConflictModal({
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onSkipAll(),
     type: "button"
-  }, "Skip All")), h("button", {
-    class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md ml-2",
+  }, "Skip All"), h("button", {
+    class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md",
     onClick: () => onAbort(),
     type: "button"
-  }, "Abort Upload")))));
+  }, "Abort Upload"))));
 }

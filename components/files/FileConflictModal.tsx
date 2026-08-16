@@ -31,48 +31,44 @@ export default function FileConflictModal(
             already exists in this location. What would you like to do?
           </p>
         </section>
-        <footer class='flex flex-col gap-2'>
-          <div class='grid grid-cols-2 gap-2'>
-            <button
-              class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
-              onClick={() => onReplace()}
-              type='button'
-            >
-              Replace
-            </button>
-            <button
-              class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
-              onClick={() => onReplaceAll()}
-              type='button'
-            >
-              Replace All
-            </button>
-          </div>
-          <div class='flex gap-2 justify-between items-center'>
-            <div class='grid grid-cols-2 gap-2 flex-1'>
-              <button
-                class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
-                onClick={() => onSkip()}
-                type='button'
-              >
-                Skip
-              </button>
-              <button
-                class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
-                onClick={() => onSkipAll()}
-                type='button'
-              >
-                Skip All
-              </button>
-            </div>
-            <button
-              class='px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md ml-2'
-              onClick={() => onAbort()}
-              type='button'
-            >
-              Abort Upload
-            </button>
-          </div>
+        {/* 3-column grid so Replace/Replace All line up with the same widths as Skip/Skip All below them; the empty cell on row 1 reserves the Abort Upload column so only row 2 has it. */}
+        <footer class='grid grid-cols-[1fr_1fr_auto] gap-2'>
+          <button
+            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
+            onClick={() => onReplace()}
+            type='button'
+          >
+            Replace
+          </button>
+          <button
+            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
+            onClick={() => onReplaceAll()}
+            type='button'
+          >
+            Replace All
+          </button>
+          <div />
+          <button
+            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
+            onClick={() => onSkip()}
+            type='button'
+          >
+            Skip
+          </button>
+          <button
+            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
+            onClick={() => onSkipAll()}
+            type='button'
+          >
+            Skip All
+          </button>
+          <button
+            class='px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md'
+            onClick={() => onAbort()}
+            type='button'
+          >
+            Abort Upload
+          </button>
         </footer>
       </section>
     </>
