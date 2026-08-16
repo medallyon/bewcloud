@@ -597,6 +597,9 @@
   .w-96 {
     width: calc(var(--spacing) * 96);
   }
+  .w-\[30rem\] {
+    width: 30rem;
+  }
   .w-full {
     width: 100%;
   }
@@ -632,6 +635,9 @@
   }
   .min-w-96 {
     min-width: calc(var(--spacing) * 96);
+  }
+  .flex-1 {
+    flex: 1;
   }
   .flex-15 {
     flex: 15;

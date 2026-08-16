@@ -45,6 +45,7 @@ export default function MainPhotos({
     handleDrop
   } = useDragAndDropUpload({
     path,
+    isUploading,
     enqueueUpload,
     onBeforeUpload: () => {
       areNewOptionsOption.value = false;

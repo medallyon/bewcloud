@@ -16,6 +16,8 @@ type ConflictResolution = 'upload' | 'skip' | 'abort';
 
 interface UseDragAndDropUploadOptions {
   path: Signal<string>;
+  // Caller's own upload-in-progress signal (from useUploadQueue), flipped on immediately on drop so "Uploading..." shows during the tree-walk/conflict-check phase, before enqueueUpload's own progress messages take over.
+  isUploading: Signal<boolean>;
   enqueueUpload: (items: { file: File; parentPath: string; overwrite: boolean }[]) => Promise<void>;
   // Called once, right before conflict resolution starts, e.g. to close an open dropdown.
   onBeforeUpload?: () => void;
@@ -27,7 +29,7 @@ interface UseDragAndDropUploadOptions {
 
 // Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
 export function useDragAndDropUpload(
-  { path, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }: UseDragAndDropUploadOptions,
+  { path, isUploading, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }: UseDragAndDropUploadOptions,
 ) {
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
@@ -96,9 +98,12 @@ export function useDragAndDropUpload(
     const filesToUpload = fileFilter ? candidateFiles.filter(fileFilter) : candidateFiles;
 
     if (filesToUpload.length === 0) {
+      isUploading.value = false;
       return;
     }
 
+    // Immediate feedback for the conflict-check phase below (a network round-trip per target path), before enqueueUpload's own progress messages take over.
+    isUploading.value = true;
     onBeforeUpload?.();
     replaceAllMode.value = false; // Reset replace/skip all mode for new upload session
     skipAllMode.value = false;
@@ -118,9 +123,10 @@ export function useDragAndDropUpload(
       const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
 
       if (resolution === 'abort') {
-        // Discards everything resolved so far in this batch too, not just the remaining files.
+        // Discards everything resolved so far in this batch too, not just the remaining files. enqueueUpload is never reached, so clear the indicator ourselves.
         replaceAllMode.value = false;
         skipAllMode.value = false;
+        isUploading.value = false;
         return;
       }
 
@@ -236,22 +242,33 @@ export function useDragAndDropUpload(
     isDraggingOver.value = false;
     dragCounter.value = 0;
 
+    const hasItems = !!event.dataTransfer?.items && event.dataTransfer.items.length > 0;
+    const hasFiles = !!event.dataTransfer?.files && event.dataTransfer.files.length > 0;
+
+    if (!hasItems && !hasFiles) {
+      return;
+    }
+
+    // Immediate feedback while we walk the dropped tree below, which (for a directory with many files) can itself take a moment before uploadFiles even starts its own conflict check.
+    isUploading.value = true;
+
     try {
-      if (event.dataTransfer?.items && event.dataTransfer.items.length > 0) {
+      if (hasItems) {
         // Use items for directory support
-        const { files: droppedFiles, emptyDirectories } = await processDroppedItems(event.dataTransfer.items);
+        const { files: droppedFiles, emptyDirectories } = await processDroppedItems(event.dataTransfer!.items);
 
         for (const directoryPath of emptyDirectories) {
           await onEmptyDirectory?.(directoryPath);
         }
 
         await uploadFiles(droppedFiles);
-      } else if (event.dataTransfer?.files) {
+      } else {
         // Fallback to files for compatibility
-        await uploadFiles(Array.from(event.dataTransfer.files));
+        await uploadFiles(Array.from(event.dataTransfer!.files));
       }
     } catch (error) {
       console.error('Failed to process dropped files:', error);
+      isUploading.value = false;
     }
   }
 

@@ -2,6 +2,7 @@ import { useSignal } from '@preact/signals';
 import { fetchExistingFileNames } from "./existingFileNames.js";
 export function useDragAndDropUpload({
   path,
+  isUploading,
   enqueueUpload,
   onBeforeUpload,
   fileFilter,
@@ -59,8 +60,10 @@ export function useDragAndDropUpload({
   async function uploadFiles(candidateFiles) {
     const filesToUpload = fileFilter ? candidateFiles.filter(fileFilter) : candidateFiles;
     if (filesToUpload.length === 0) {
+      isUploading.value = false;
       return;
     }
+    isUploading.value = true;
     onBeforeUpload?.();
     replaceAllMode.value = false;
     skipAllMode.value = false;
@@ -73,6 +76,7 @@ export function useDragAndDropUpload({
       if (resolution === 'abort') {
         replaceAllMode.value = false;
         skipAllMode.value = false;
+        isUploading.value = false;
         return;
       }
       if (resolution === 'upload') {
@@ -164,8 +168,14 @@ export function useDragAndDropUpload({
     event.stopPropagation();
     isDraggingOver.value = false;
     dragCounter.value = 0;
+    const hasItems = !!event.dataTransfer?.items && event.dataTransfer.items.length > 0;
+    const hasFiles = !!event.dataTransfer?.files && event.dataTransfer.files.length > 0;
+    if (!hasItems && !hasFiles) {
+      return;
+    }
+    isUploading.value = true;
     try {
-      if (event.dataTransfer?.items && event.dataTransfer.items.length > 0) {
+      if (hasItems) {
         const {
           files: droppedFiles,
           emptyDirectories
@@ -174,11 +184,12 @@ export function useDragAndDropUpload({
           await onEmptyDirectory?.(directoryPath);
         }
         await uploadFiles(droppedFiles);
-      } else if (event.dataTransfer?.files) {
+      } else {
         await uploadFiles(Array.from(event.dataTransfer.files));
       }
     } catch (error) {
       console.error('Failed to process dropped files:', error);
+      isUploading.value = false;
     }
   }
   return {

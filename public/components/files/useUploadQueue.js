@@ -119,6 +119,9 @@ export function useUploadQueue({
   }
   async function enqueueUpload(items) {
     if (items.length === 0) {
+      isUploading.value = false;
+      uploadProgress.value = '';
+      uploadError.value = '';
       return;
     }
     const pathInView = path.value;
