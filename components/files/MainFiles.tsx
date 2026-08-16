@@ -123,6 +123,8 @@ export default function MainFiles(
   } = useDragAndDropUpload({
     path,
     isUploading,
+    uploadProgress,
+    uploadError,
     enqueueUpload,
     onBeforeUpload: () => {
       areNewOptionsOpen.value = false;

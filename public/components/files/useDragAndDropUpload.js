@@ -4,6 +4,8 @@ import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 export function useDragAndDropUpload({
   path,
   isUploading,
+  uploadProgress,
+  uploadError,
   enqueueUpload,
   onBeforeUpload,
   fileFilter,
@@ -177,7 +179,10 @@ export function useDragAndDropUpload({
     if (!hasItems && !hasFiles) {
       return;
     }
+    const topLevelNames = hasItems ? Array.from(event.dataTransfer.items).map(item => item.kind === 'file' ? item.webkitGetAsEntry()?.name : undefined).filter(name => !!name) : Array.from(event.dataTransfer.files).map(file => file.name);
     isUploading.value = true;
+    uploadError.value = '';
+    uploadProgress.value = topLevelNames.length === 1 ? `Uploading ${topLevelNames[0]}...` : topLevelNames.length > 1 ? `Uploading ${topLevelNames.length} items...` : '';
     try {
       if (hasItems) {
         const {
@@ -193,7 +198,9 @@ export function useDragAndDropUpload({
       }
     } catch (error) {
       console.error('Failed to process dropped files:', error);
+      uploadError.value = error instanceof Error ? error.message : String(error);
       isUploading.value = false;
+      uploadProgress.value = '';
     }
   }
   return {
