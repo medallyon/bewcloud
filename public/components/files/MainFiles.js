@@ -69,7 +69,6 @@ export default function MainFiles({
     handleDrop
   } = useDragAndDropUpload({
     path,
-    files,
     enqueueUpload,
     onBeforeUpload: () => {
       areNewOptionsOpen.value = false;

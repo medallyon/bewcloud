@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 
 const broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
 
-let currentJob = null; // { queue: [{ file, parentPath, pathInView }], uploadProgress, sessionTag, abortController }
+let currentJob = null; // { queue: [{ file, parentPath, pathInView, overwrite }], uploadProgress, sessionTag, abortController }
 
 // A queue outlives the session that created it, so the upload endpoints refuse requests tagged with a session other than the one their cookie now belongs to. When that happens there's nothing left to retry: the rest of the queue is dropped instead of being uploaded as whoever is logged in now.
 class UploadSessionGoneError extends Error {}
@@ -128,12 +128,13 @@ async function fetchForJob(job, url, options) {
   }
 }
 
-async function uploadFileSingle(job, file, parentPath, pathInView) {
+async function uploadFileSingle(job, file, parentPath, pathInView, overwrite) {
   const requestBody = new FormData();
   requestBody.set('path_in_view', pathInView);
   requestBody.set('parent_path', parentPath);
   requestBody.set('name', file.name);
   requestBody.set('upload_session_tag', job.sessionTag);
+  requestBody.set('overwrite', String(!!overwrite));
   requestBody.set('contents', file);
 
   const response = await fetchForJob(job, '/api/files/upload', { method: 'POST', body: requestBody });
@@ -153,7 +154,7 @@ async function uploadFileSingle(job, file, parentPath, pathInView) {
   return { newFiles: result.newFiles, newDirectories: result.newDirectories };
 }
 
-async function uploadFileChunked(job, file, parentPath, pathInView) {
+async function uploadFileChunked(job, file, parentPath, pathInView, overwrite) {
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE_BYTES);
   const uploadId = crypto.randomUUID();
   job.currentUploadId = uploadId;
@@ -181,6 +182,7 @@ async function uploadFileChunked(job, file, parentPath, pathInView) {
     requestBody.set('parent_path', parentPath);
     requestBody.set('name', file.name);
     requestBody.set('upload_session_tag', job.sessionTag);
+    requestBody.set('overwrite', String(!!overwrite));
     requestBody.set('chunk', chunkBlob);
 
     const response = await fetchForJob(job, '/api/files/upload-chunk', { method: 'POST', body: requestBody });
@@ -209,7 +211,7 @@ async function uploadFileChunked(job, file, parentPath, pathInView) {
 
 async function processQueue(job) {
   while (job.queue.length > 0) {
-    const { file, parentPath, pathInView, kind } = job.queue.shift();
+    const { file, parentPath, pathInView, kind, overwrite } = job.queue.shift();
 
     job.uploadProgress = '';
     job.currentItemKind = kind || 'file';
@@ -220,8 +222,8 @@ async function processQueue(job) {
 
     try {
       const result = file.size >= CHUNK_SIZE_BYTES
-        ? await uploadFileChunked(job, file, parentPath, pathInView)
-        : await uploadFileSingle(job, file, parentPath, pathInView);
+        ? await uploadFileChunked(job, file, parentPath, pathInView, overwrite)
+        : await uploadFileSingle(job, file, parentPath, pathInView, overwrite);
 
       if (result) {
         broadcastState({ ...result, pathInView });

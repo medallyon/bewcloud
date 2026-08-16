@@ -4,8 +4,8 @@ import { useEffect } from 'preact/hooks';
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
-import { RequestBody as GetFilesRequestBody, ResponseBody as GetFilesResponseBody } from '/pages/api/files/get.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+import { fetchExistingFileNames } from './existingFileNames.ts';
 
 // 10 MB chunks keep each request faster.
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
@@ -13,6 +13,7 @@ const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
 interface UploadQueueItem {
   file: File;
   parentPath: string;
+  overwrite?: boolean;
 }
 
 interface UseUploadQueueOptions {
@@ -22,7 +23,6 @@ interface UseUploadQueueOptions {
   directories: Signal<Directory[]>;
   uploadSessionTag?: string;
   uploadKind?: 'file' | 'photo' | 'note';
-  // Skip the built-in "already exists" skip-with-error check for callers (like MainFiles) that already resolved name conflicts with the user (replace/skip/replace-all) before calling enqueueUpload.
   checkExistingFiles?: boolean;
 }
 
@@ -96,12 +96,13 @@ export function useUploadQueue(
     };
   }, []);
 
-  async function uploadFileSingle(file: File, parentPath: string, pathInView: string) {
+  async function uploadFileSingle(file: File, parentPath: string, pathInView: string, overwrite: boolean) {
     const requestBody = new FormData();
     requestBody.set('path_in_view', pathInView);
     requestBody.set('parent_path', parentPath);
     requestBody.set('name', file.name);
     requestBody.set('upload_session_tag', uploadSessionTag);
+    requestBody.set('overwrite', String(overwrite));
     requestBody.set('contents', file);
 
     const response = await fetch(`/api/files/upload`, {
@@ -123,7 +124,7 @@ export function useUploadQueue(
     directories.value = [...result.newDirectories];
   }
 
-  async function uploadFileChunked(file: File, parentPath: string, pathInView: string) {
+  async function uploadFileChunked(file: File, parentPath: string, pathInView: string, overwrite: boolean) {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE_BYTES);
     const uploadId = crypto.randomUUID();
 
@@ -143,6 +144,7 @@ export function useUploadQueue(
         requestBody.set('parent_path', parentPath);
         requestBody.set('name', file.name);
         requestBody.set('upload_session_tag', uploadSessionTag);
+        requestBody.set('overwrite', String(overwrite));
         requestBody.set('chunk', chunkBlob);
 
         const response = await fetch(`/api/files/upload-chunk`, {
@@ -176,32 +178,6 @@ export function useUploadQueue(
     }
   }
 
-  // A directory's existing file names, for skipping upload items that would just hit "already exists".
-  async function findExistingNames(parentPath: string): Promise<Set<string>> {
-    try {
-      const requestBody: GetFilesRequestBody = { parentPath };
-
-      // Same reasoning as sw.js's fetchForJob: don't let a hung server response block the upload from ever starting.
-      const response = await fetch('/api/files/get', {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      if (!response.ok) {
-        return new Set();
-      }
-
-      const result = await response.json() as GetFilesResponseBody;
-
-      return new Set(result.files.map((file) => file.file_name));
-    } catch (error) {
-      console.error(error);
-      // Fail open: an upload that turns out to clash still gets caught (just later, by the server) instead of being blocked by this check itself failing.
-      return new Set();
-    }
-  }
-
   async function enqueueUpload(items: UploadQueueItem[]) {
     if (items.length === 0) {
       return;
@@ -220,7 +196,9 @@ export function useUploadQueue(
       const uniqueParentPaths = [...new Set(items.map((item) => item.parentPath))];
       const existingNamesByParentPath = new Map(
         await Promise.all(
-          uniqueParentPaths.map(async (parentPath) => [parentPath, await findExistingNames(parentPath)] as const),
+          uniqueParentPaths.map(
+            async (parentPath) => [parentPath, await fetchExistingFileNames(parentPath)] as const,
+          ),
         ),
       );
 
@@ -253,9 +231,9 @@ export function useUploadQueue(
     for (const item of itemsToUpload) {
       try {
         if (item.file.size >= CHUNK_SIZE_BYTES) {
-          await uploadFileChunked(item.file, item.parentPath, pathInView);
+          await uploadFileChunked(item.file, item.parentPath, pathInView, !!item.overwrite);
         } else {
-          await uploadFileSingle(item.file, item.parentPath, pathInView);
+          await uploadFileSingle(item.file, item.parentPath, pathInView, !!item.overwrite);
         }
       } catch (error) {
         console.error(error);

@@ -61,6 +61,7 @@ async function post({ request, user, session }: RequestHandlerParams) {
   const name = requestBody.get('name') as string;
   const chunk = requestBody.get('chunk') as File | null;
   const uploadSessionTag = requestBody.get('upload_session_tag') as string;
+  const overwrite = requestBody.get('overwrite') === 'true';
 
   const chunkIndex = parseInt(chunkIndexStr, 10);
   const totalChunks = parseInt(totalChunksStr, 10);
@@ -102,20 +103,22 @@ async function post({ request, user, session }: RequestHandlerParams) {
   if (chunkIndex === 0) {
     await cleanStaleUploads(userUploadDir);
 
-    const targetFilePath = join(filesRootPath, user!.id, parentPath, name.trim());
+    if (!overwrite) {
+      const targetFilePath = join(filesRootPath, user!.id, parentPath, name.trim());
 
-    try {
-      await Deno.stat(targetFilePath);
+      try {
+        await Deno.stat(targetFilePath);
 
-      const responseBody: ResponseBody = {
-        success: false,
-        isComplete: true,
-        error: 'A file with this name already exists.',
-      };
+        const responseBody: ResponseBody = {
+          success: false,
+          isComplete: true,
+          error: 'A file with this name already exists.',
+        };
 
-      return new Response(JSON.stringify(responseBody));
-    } catch {
-      // Doesn't exist yet, proceed with the upload.
+        return new Response(JSON.stringify(responseBody));
+      } catch {
+        // Doesn't exist yet, proceed with the upload.
+      }
     }
   }
 
@@ -143,11 +146,13 @@ async function post({ request, user, session }: RequestHandlerParams) {
 
     const finalFilePath = join(finalParentDir, name.trim());
 
-    // Open with createNew:true to match the single-upload behaviour (reject if file already exists)
+    // Open with createNew:true to match the single-upload behaviour (reject if file already exists), unless overwrite was requested (write in place instead).
     let finalFile: Deno.FsFile;
 
     try {
-      finalFile = await Deno.open(finalFilePath, { write: true, createNew: true });
+      finalFile = overwrite
+        ? await Deno.open(finalFilePath, { write: true, create: true, truncate: true })
+        : await Deno.open(finalFilePath, { write: true, createNew: true });
     } catch (error) {
       await Deno.remove(uploadDir, { recursive: true }).catch(() => {});
 

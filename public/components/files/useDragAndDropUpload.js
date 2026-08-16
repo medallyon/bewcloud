@@ -1,7 +1,7 @@
 import { useSignal } from '@preact/signals';
+import { fetchExistingFileNames } from "./existingFileNames.js";
 export function useDragAndDropUpload({
   path,
-  files,
   enqueueUpload,
   onBeforeUpload,
   fileFilter,
@@ -11,9 +11,6 @@ export function useDragAndDropUpload({
   const dragCounter = useSignal(0);
   const fileConflictModal = useSignal(null);
   const replaceAllMode = useSignal(false);
-  function checkFileExists(fileName, targetPath) {
-    return files.value.some(file => file.file_name === fileName && file.parent_path === targetPath);
-  }
   function getTargetPath(file) {
     if (!file.webkitRelativePath) {
       return path.value;
@@ -21,8 +18,9 @@ export function useDragAndDropUpload({
     const directoryPath = file.webkitRelativePath.slice(0, -file.name.length);
     return `${path.value}${directoryPath}`;
   }
-  function resolveFileConflict(file, targetPath) {
-    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
+  function resolveFileConflict(file, targetPath, existingNamesByPath) {
+    const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
+    if (replaceAllMode.value || !fileExists) {
       return Promise.resolve(true);
     }
     return new Promise(resolve => {
@@ -52,14 +50,17 @@ export function useDragAndDropUpload({
     }
     onBeforeUpload?.();
     replaceAllMode.value = false;
+    const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
+    const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
     const itemsToUpload = [];
     for (const file of filesToUpload) {
       const targetPath = getTargetPath(file);
-      const shouldUpload = await resolveFileConflict(file, targetPath);
+      const shouldUpload = await resolveFileConflict(file, targetPath, existingNamesByPath);
       if (shouldUpload) {
         itemsToUpload.push({
           file,
-          parentPath: targetPath
+          parentPath: targetPath,
+          overwrite: true
         });
       }
     }

@@ -1,6 +1,6 @@
 import { Signal, useSignal } from '@preact/signals';
 
-import { DirectoryFile } from '/lib/types.ts';
+import { fetchExistingFileNames } from './existingFileNames.ts';
 
 interface FileConflictState {
   isOpen: boolean;
@@ -12,8 +12,7 @@ interface FileConflictState {
 
 interface UseDragAndDropUploadOptions {
   path: Signal<string>;
-  files: Signal<DirectoryFile[]>;
-  enqueueUpload: (items: { file: File; parentPath: string }[]) => Promise<void>;
+  enqueueUpload: (items: { file: File; parentPath: string; overwrite: boolean }[]) => Promise<void>;
   // Called once, right before conflict resolution starts, e.g. to close an open dropdown.
   onBeforeUpload?: () => void;
   // Restricts which dropped/chosen files are uploaded, e.g. Photos only wants images and videos.
@@ -24,16 +23,12 @@ interface UseDragAndDropUploadOptions {
 
 // Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
 export function useDragAndDropUpload(
-  { path, files, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }: UseDragAndDropUploadOptions,
+  { path, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }: UseDragAndDropUploadOptions,
 ) {
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
   const fileConflictModal = useSignal<FileConflictState | null>(null);
   const replaceAllMode = useSignal<boolean>(false);
-
-  function checkFileExists(fileName: string, targetPath: string): boolean {
-    return files.value.some((file) => file.file_name === fileName && file.parent_path === targetPath);
-  }
 
   function getTargetPath(file: File): string {
     if (!file.webkitRelativePath) {
@@ -46,8 +41,14 @@ export function useDragAndDropUpload(
   }
 
   // Resolves a naming conflict for a single file, prompting the user unless already in "replace all" mode. Returns whether the file should be uploaded.
-  function resolveFileConflict(file: File, targetPath: string): Promise<boolean> {
-    if (replaceAllMode.value || !checkFileExists(file.name, targetPath)) {
+  function resolveFileConflict(
+    file: File,
+    targetPath: string,
+    existingNamesByPath: Map<string, Set<string>>,
+  ): Promise<boolean> {
+    const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
+
+    if (replaceAllMode.value || !fileExists) {
       return Promise.resolve(true);
     }
 
@@ -83,14 +84,23 @@ export function useDragAndDropUpload(
     onBeforeUpload?.();
     replaceAllMode.value = false; // Reset replace all mode for new upload session
 
-    const itemsToUpload: { file: File; parentPath: string }[] = [];
+    // Check every target path a dropped file will land in (not just the currently-viewed directory), so conflicts in dragged subdirectories are caught too.
+    const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
+    const existingNamesByPath = new Map(
+      await Promise.all(
+        targetPaths.map(async (targetPath) => [targetPath, await fetchExistingFileNames(targetPath)] as const),
+      ),
+    );
+
+    const itemsToUpload: { file: File; parentPath: string; overwrite: boolean }[] = [];
 
     for (const file of filesToUpload) {
       const targetPath = getTargetPath(file);
-      const shouldUpload = await resolveFileConflict(file, targetPath);
+      const shouldUpload = await resolveFileConflict(file, targetPath, existingNamesByPath);
 
       if (shouldUpload) {
-        itemsToUpload.push({ file, parentPath: targetPath });
+        // Always true: a file that never conflicted writes normally (overwrite is a no-op then); a file that did conflict only gets here because the user chose Replace/Replace All.
+        itemsToUpload.push({ file, parentPath: targetPath, overwrite: true });
       }
     }
 
