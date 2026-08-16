@@ -215,7 +215,7 @@ export function useDragAndDropUpload(
     event.stopPropagation();
 
     dragCounter.value++;
-    if (event.dataTransfer?.items && event.dataTransfer.items.length > 0) {
+    if (event.dataTransfer?.types.includes('Files')) {
       isDraggingOver.value = true;
     }
   }
