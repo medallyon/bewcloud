@@ -10,7 +10,7 @@ export default function FileConflictModal({
   return h(Fragment, null, h("section", {
     class: `fixed ${isOpen ? 'block' : 'hidden'} z-40 w-screen h-screen inset-0 bg-gray-900/60`
   }), h("section", {
-    class: `fixed ${isOpen ? 'block' : 'hidden'} z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 bg-slate-600 text-white rounded-md px-8 py-6 drop-shadow-lg overflow-y-scroll max-h-[80%]`
+    class: `fixed ${isOpen ? 'block' : 'hidden'} z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30rem] bg-slate-600 text-white rounded-md px-8 py-6 drop-shadow-lg overflow-y-auto max-h-[80%]`
   }, h("h1", {
     class: "text-2xl font-semibold my-5"
   }, "File Already Exists"), h("section", {
@@ -20,28 +20,32 @@ export default function FileConflictModal({
   }, "The file ", h("strong", {
     class: "text-white"
   }, existingFileName), ' ', "already exists in this location. What would you like to do?")), h("footer", {
-    class: "flex flex-wrap gap-2 justify-between items-center"
+    class: "flex flex-col gap-2"
   }, h("div", {
-    class: "flex flex-wrap gap-2"
+    class: "grid grid-cols-2 gap-2"
   }, h("button", {
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onReplace(),
     type: "button"
   }, "Replace"), h("button", {
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
+    onClick: () => onReplaceAll(),
+    type: "button"
+  }, "Replace All")), h("div", {
+    class: "flex gap-2 justify-between items-center"
+  }, h("div", {
+    class: "grid grid-cols-2 gap-2 flex-1"
+  }, h("button", {
+    class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onSkip(),
     type: "button"
   }, "Skip"), h("button", {
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
-    onClick: () => onReplaceAll(),
-    type: "button"
-  }, "Replace All"), h("button", {
-    class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onSkipAll(),
     type: "button"
   }, "Skip All")), h("button", {
-    class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md",
+    class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md ml-2",
     onClick: () => onAbort(),
     type: "button"
-  }, "Abort Upload"))));
+  }, "Abort Upload")))));
 }

@@ -180,6 +180,10 @@ export function useUploadQueue(
 
   async function enqueueUpload(items: UploadQueueItem[]) {
     if (items.length === 0) {
+      // A caller (like useDragAndDropUpload after a "Skip All") may resolve every candidate to nothing left to upload. Still clear any stale isUploading/error from a previous run, or that leftover state keeps showing after this no-op call.
+      isUploading.value = false;
+      uploadProgress.value = '';
+      uploadError.value = '';
       return;
     }
 
