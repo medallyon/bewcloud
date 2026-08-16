@@ -145,7 +145,7 @@ export function useUploadQueue({
     const existingNamesByParentPath = new Map(await Promise.all(uniqueParentPaths.map(async parentPath => [parentPath, await findExistingNames(parentPath)])));
     const itemsToUpload = items.filter(item => {
       if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
-        uploadError.value = `${item.file.name}: A file with this name already exists.`;
+        uploadError.value = `(${item.file.name}): A file with this name already exists.`;
         return false;
       }
       return true;
@@ -175,7 +175,7 @@ export function useUploadQueue({
         }
       } catch (error) {
         console.error(error);
-        uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
+        uploadError.value = `(${item.file.name}): ${error instanceof Error ? error.message : String(error)}`;
       }
     }
     isUploading.value = false;
