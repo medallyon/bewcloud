@@ -68,12 +68,12 @@ export function useUploadQueue({
     files.value = [...result.newFiles];
     directories.value = [...result.newDirectories];
   }
-  async function uploadFileChunked(file, parentPath, pathInView) {
+  async function uploadFileChunked(file, parentPath, pathInView, itemLabel) {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE_BYTES);
     const uploadId = crypto.randomUUID();
     try {
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        uploadProgress.value = `Uploading ${file.name} (${chunkIndex + 1}/${totalChunks})…`;
+        uploadProgress.value = `${itemLabel}, chunk ${chunkIndex + 1}/${totalChunks}…`;
         const start = chunkIndex * CHUNK_SIZE_BYTES;
         const end = Math.min(start + CHUNK_SIZE_BYTES, file.size);
         const chunkBlob = file.slice(start, end);
@@ -166,10 +166,12 @@ export function useUploadQueue({
     if (wasEnqueuedInServiceWorker) {
       return;
     }
-    for (const item of itemsToUpload) {
+    for (const [index, item] of itemsToUpload.entries()) {
+      const itemLabel = itemsToUpload.length > 1 ? `Uploading ${item.file.name} (${index + 1}/${itemsToUpload.length})` : `Uploading ${item.file.name}`;
+      uploadProgress.value = `${itemLabel}…`;
       try {
         if (item.file.size >= CHUNK_SIZE_BYTES) {
-          await uploadFileChunked(item.file, item.parentPath, pathInView);
+          await uploadFileChunked(item.file, item.parentPath, pathInView, itemLabel);
         } else {
           await uploadFileSingle(item.file, item.parentPath, pathInView);
         }
