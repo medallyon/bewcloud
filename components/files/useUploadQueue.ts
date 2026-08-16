@@ -213,7 +213,7 @@ export function useUploadQueue(
 
     const itemsToUpload = items.filter((item) => {
       if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
-        uploadError.value = `${item.file.name}: A file with this name already exists.`;
+        uploadError.value = `(${item.file.name}): A file with this name already exists.`;
         return false;
       }
 
@@ -245,7 +245,7 @@ export function useUploadQueue(
         }
       } catch (error) {
         console.error(error);
-        uploadError.value = `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`;
+        uploadError.value = `(${item.file.name}): ${error instanceof Error ? error.message : String(error)}`;
       }
     }
 

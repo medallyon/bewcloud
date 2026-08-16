@@ -683,7 +683,7 @@ export default function MainFiles({
     height: 18
   }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
     class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
-  }, "Upload failed \u2014 ", uploadError.value) : null), !fileShareId ? h("section", {
+  }, "Upload failed ", uploadError.value) : null), !fileShareId ? h("section", {
     class: "flex flex-row items-center justify-start my-12"
   }, h("span", {
     class: "font-semibold"
