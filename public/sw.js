@@ -28,6 +28,7 @@ function broadcastState(extra = {}) {
     sessionTag: currentJob?.sessionTag || '',
     kindsInProgress: getKindsInProgress(currentJob),
     kind: currentJob?.currentItemKind || '',
+    error: currentJob?.error || '',
     ...extra,
   });
 }
@@ -245,9 +246,10 @@ async function processQueue(job) {
         const droppedCount = job.queue.length + 1;
 
         console.error(error);
-        broadcastState({
-          error: `(${file.name}): ${error.message} (${droppedCount} upload${droppedCount === 1 ? '' : 's'} dropped).`,
-        });
+        job.error = `(${file.name}): ${error.message} (${droppedCount} upload${
+          droppedCount === 1 ? '' : 's'
+        } dropped).`;
+        broadcastState();
         await abandonCurrentJob();
 
         return;
@@ -255,7 +257,8 @@ async function processQueue(job) {
 
       console.error(error);
       await cleanupAbortedChunkUpload(job);
-      broadcastState({ error: `(${file.name}): ${String(error?.message || error)}` });
+      job.error = `(${file.name}): ${String(error?.message || error)}`;
+      broadcastState();
     }
   }
 
@@ -295,6 +298,7 @@ self.addEventListener('message', (event) => {
       currentJob = {
         queue: [],
         uploadProgress: '',
+        error: '',
         sessionTag: message.sessionTag,
         abortController: new AbortController(),
         totalCount: 0,
