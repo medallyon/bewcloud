@@ -269,7 +269,10 @@ self.addEventListener('message', (event) => {
   }
 
   if (message.type === 'ABORT_UPLOADS') {
-    event.waitUntil(abandonCurrentJob());
+    // No sessionTag (e.g. logout-time cleanup) aborts unconditionally; a tagged abort only cancels a matching job.
+    if (!message.sessionTag || !currentJob || message.sessionTag === currentJob.sessionTag) {
+      event.waitUntil(abandonCurrentJob());
+    }
     return;
   }
 

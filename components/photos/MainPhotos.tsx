@@ -63,6 +63,7 @@ export default function MainPhotos(
       areNewOptionsOption.value = false;
     },
     fileFilter: isPhotoFile,
+    sessionTag: uploadSessionTag ?? '',
   });
 
   function onClickUploadFile() {

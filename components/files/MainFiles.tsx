@@ -130,6 +130,7 @@ export default function MainFiles(
       areNewOptionsOpen.value = false;
     },
     onEmptyDirectory: createDirectoryFromPath,
+    sessionTag: uploadSessionTag ?? '',
   });
 
   function notifyDirectoryGone(parentPath: string, name: string) {

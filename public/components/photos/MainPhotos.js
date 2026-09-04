@@ -52,7 +52,8 @@ export default function MainPhotos({
     onBeforeUpload: () => {
       areNewOptionsOption.value = false;
     },
-    fileFilter: isPhotoFile
+    fileFilter: isPhotoFile,
+    sessionTag: uploadSessionTag ?? ''
   });
   function onClickUploadFile() {
     const fileInput = document.createElement('input');

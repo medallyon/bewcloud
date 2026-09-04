@@ -29,6 +29,8 @@ interface UseDragAndDropUploadOptions {
   fileFilter?: (file: File) => boolean;
   // Called (in order) for each empty directory found in a directory drop. Files-only wants these created; Photos ignores them.
   onEmptyDirectory?: (directoryPath: string) => Promise<void>;
+  // Identifies this view's upload session to the service worker, so Abort Upload only cancels this session's own in-flight job.
+  sessionTag?: string;
 }
 
 // A single readEntries() call can return a partial batch (historically capped around 100 in Chromium) per the File and Directory Entries API spec, so it must be called repeatedly until it resolves with an empty array to get every entry in the directory. Exported so it can be unit tested directly.
@@ -54,8 +56,17 @@ export function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Prom
 
 // Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
 export function useDragAndDropUpload(
-  { path, isUploading, uploadProgress, uploadError, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }:
-    UseDragAndDropUploadOptions,
+  {
+    path,
+    isUploading,
+    uploadProgress,
+    uploadError,
+    enqueueUpload,
+    onBeforeUpload,
+    fileFilter,
+    onEmptyDirectory,
+    sessionTag = '',
+  }: UseDragAndDropUploadOptions,
 ) {
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
@@ -117,8 +128,8 @@ export function useDragAndDropUpload(
         },
         onAbort: () => {
           fileConflictModal.value = null;
-          // Also stops any upload the service worker already has in flight/queued
-          postToUploadServiceWorker({ type: 'ABORT_UPLOADS' });
+          // Also stops any upload the service worker already has in flight/queued for this session
+          postToUploadServiceWorker({ type: 'ABORT_UPLOADS', sessionTag });
           resolve('abort');
         },
       };
@@ -261,6 +272,11 @@ export function useDragAndDropUpload(
 
     isDraggingOver.value = false;
     dragCounter.value = 0;
+
+    if (isUploading.value) {
+      // A batch is already in flight - don't let a second overlapping drop land on top of it.
+      return;
+    }
 
     const hasItems = !!event.dataTransfer?.items && event.dataTransfer.items.length > 0;
     const hasFiles = !!event.dataTransfer?.files && event.dataTransfer.files.length > 0;

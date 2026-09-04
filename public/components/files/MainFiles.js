@@ -77,7 +77,8 @@ export default function MainFiles({
     onBeforeUpload: () => {
       areNewOptionsOpen.value = false;
     },
-    onEmptyDirectory: createDirectoryFromPath
+    onEmptyDirectory: createDirectoryFromPath,
+    sessionTag: uploadSessionTag ?? ''
   });
   function notifyDirectoryGone(parentPath, name) {
     return postToUploadServiceWorker({

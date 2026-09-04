@@ -25,7 +25,8 @@ export function useDragAndDropUpload({
   enqueueUpload,
   onBeforeUpload,
   fileFilter,
-  onEmptyDirectory
+  onEmptyDirectory,
+  sessionTag = ''
 }) {
   const isDraggingOver = useSignal(false);
   const dragCounter = useSignal(0);
@@ -75,7 +76,8 @@ export function useDragAndDropUpload({
         onAbort: () => {
           fileConflictModal.value = null;
           postToUploadServiceWorker({
-            type: 'ABORT_UPLOADS'
+            type: 'ABORT_UPLOADS',
+            sessionTag
           });
           resolve('abort');
         }
@@ -180,6 +182,9 @@ export function useDragAndDropUpload({
     event.stopPropagation();
     isDraggingOver.value = false;
     dragCounter.value = 0;
+    if (isUploading.value) {
+      return;
+    }
     const hasItems = !!event.dataTransfer?.items && event.dataTransfer.items.length > 0;
     const hasFiles = !!event.dataTransfer?.files && event.dataTransfer.files.length > 0;
     if (!hasItems && !hasFiles) {
