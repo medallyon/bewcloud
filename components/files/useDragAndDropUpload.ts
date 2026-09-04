@@ -141,6 +141,10 @@ export function useDragAndDropUpload(
     const filesToUpload = fileFilter ? candidateFiles.filter(fileFilter) : candidateFiles;
 
     if (filesToUpload.length === 0) {
+      if (candidateFiles.length > 0) {
+        // Something was dropped, but the filter (e.g. Photos wanting only images/videos) rejected all of it.
+        uploadError.value = 'No supported files were found in the dropped items.';
+      }
       isUploading.value = false;
       return;
     }

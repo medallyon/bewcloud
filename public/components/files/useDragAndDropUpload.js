@@ -87,6 +87,9 @@ export function useDragAndDropUpload({
   async function uploadFiles(candidateFiles) {
     const filesToUpload = fileFilter ? candidateFiles.filter(fileFilter) : candidateFiles;
     if (filesToUpload.length === 0) {
+      if (candidateFiles.length > 0) {
+        uploadError.value = 'No supported files were found in the dropped items.';
+      }
       isUploading.value = false;
       return;
     }
