@@ -146,13 +146,16 @@ async function post({ request, user, session }: RequestHandlerParams) {
 
     const finalFilePath = join(finalParentDir, name.trim());
 
-    // Open with createNew:true to match the single-upload behaviour (reject if file already exists), unless overwrite was requested (write in place instead).
+    // When overwriting, write into a temp path instead of finalFilePath directly, so a failure during the write loop below can't truncate/delete the pre-existing file. When not overwriting, finalFilePath can't pre-exist by definition, so there's no data-loss risk and it's written directly.
+    const writeTargetPath = overwrite ? `${finalFilePath}.bewcloud-tmp-${uploadId}` : finalFilePath;
+
+    // Open with createNew:true to match the single-upload behaviour (reject if file already exists), unless overwrite was requested (write into the temp path instead).
     let finalFile: Deno.FsFile;
 
     try {
       finalFile = overwrite
-        ? await Deno.open(finalFilePath, { write: true, create: true, truncate: true })
-        : await Deno.open(finalFilePath, { write: true, createNew: true });
+        ? await Deno.open(writeTargetPath, { write: true, create: true, truncate: true })
+        : await Deno.open(writeTargetPath, { write: true, createNew: true });
     } catch (error) {
       await Deno.remove(uploadDir, { recursive: true }).catch(() => {});
 
@@ -176,13 +179,18 @@ async function post({ request, user, session }: RequestHandlerParams) {
     } catch (error) {
       finalFile.close();
 
-      await Deno.remove(finalFilePath).catch(() => {});
+      await Deno.remove(writeTargetPath).catch(() => {});
       await Deno.remove(uploadDir, { recursive: true }).catch(() => {});
 
       throw error;
     }
 
     finalFile.close();
+
+    if (overwrite) {
+      await Deno.rename(writeTargetPath, finalFilePath);
+    }
+
     await Deno.remove(uploadDir, { recursive: true });
 
     const newFiles = await FileModel.list(user!.id, pathInView);
