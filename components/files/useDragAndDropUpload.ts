@@ -1,4 +1,5 @@
 import { Signal, useSignal } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
 
 import { fetchExistingFileNames } from './existingFileNames.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
@@ -73,6 +74,21 @@ export function useDragAndDropUpload(
   const fileConflictModal = useSignal<FileConflictState | null>(null);
   const replaceAllMode = useSignal<boolean>(false);
   const skipAllMode = useSignal<boolean>(false);
+
+  // Safety net: a drop landing outside the handled area below (e.g. the page header) would otherwise navigate the browser away to the dropped file/URL instead of being ignored.
+  useEffect(() => {
+    function preventDefaultDrop(event: DragEvent) {
+      event.preventDefault();
+    }
+
+    globalThis.addEventListener('dragover', preventDefaultDrop);
+    globalThis.addEventListener('drop', preventDefaultDrop);
+
+    return () => {
+      globalThis.removeEventListener('dragover', preventDefaultDrop);
+      globalThis.removeEventListener('drop', preventDefaultDrop);
+    };
+  }, []);
 
   function getTargetPath(file: File): string {
     if (!file.webkitRelativePath) {

@@ -1,4 +1,5 @@
 import { useSignal } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
 import { fetchExistingFileNames } from "./existingFileNames.js";
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 export function readAllDirectoryEntries(reader) {
@@ -33,6 +34,17 @@ export function useDragAndDropUpload({
   const fileConflictModal = useSignal(null);
   const replaceAllMode = useSignal(false);
   const skipAllMode = useSignal(false);
+  useEffect(() => {
+    function preventDefaultDrop(event) {
+      event.preventDefault();
+    }
+    globalThis.addEventListener('dragover', preventDefaultDrop);
+    globalThis.addEventListener('drop', preventDefaultDrop);
+    return () => {
+      globalThis.removeEventListener('dragover', preventDefaultDrop);
+      globalThis.removeEventListener('drop', preventDefaultDrop);
+    };
+  }, []);
   function getTargetPath(file) {
     if (!file.webkitRelativePath) {
       return path.value;
