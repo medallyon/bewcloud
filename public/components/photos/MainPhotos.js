@@ -122,7 +122,7 @@ export default function MainPhotos({
     onDragOver: handleDragOver,
     onDrop: handleDrop
   }, isDraggingOver.value && h("div", {
-    class: "fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+    class: "fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
   }, h("div", {
     class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
   }, h("img", {

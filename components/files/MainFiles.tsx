@@ -808,7 +808,7 @@ export default function MainFiles(
     >
       {/* Drag and drop overlay */}
       {isDraggingOver.value && !fileShareId && (
-        <div class='fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center'>
+        <div class='fixed inset-0 z-50 bg-black/50 flex items-center justify-center'>
           <div class='bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center'>
             <img
               src='/public/images/add.svg'
