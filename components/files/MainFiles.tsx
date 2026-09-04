@@ -196,10 +196,7 @@ export default function MainFiles(
   }
 
   // Create a directory from a relative path
-  async function createDirectoryFromPath(dirPath: string) {
-    // Captured once up front (mirrors useUploadQueue.ts's enqueueUpload capturing pathInView), so this directory still lands under the path that was in view when the drop started, even if the user has since navigated elsewhere.
-    const pathInView = path.value;
-
+  async function createDirectoryFromPath(dirPath: string, pathInView: string) {
     try {
       isCreatingDirectories.value = true;
       currentDirectoryName.value = dirPath;

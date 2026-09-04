@@ -29,7 +29,7 @@ interface UseDragAndDropUploadOptions {
   // Restricts which dropped/chosen files are uploaded, e.g. Photos only wants images and videos.
   fileFilter?: (file: File) => boolean;
   // Called (in order) for each empty directory found in a directory drop. Files-only wants these created; Photos ignores them.
-  onEmptyDirectory?: (directoryPath: string) => Promise<void>;
+  onEmptyDirectory?: (directoryPath: string, parentPath: string) => Promise<void>;
   // Identifies this view's upload session to the service worker, so Abort Upload only cancels this session's own in-flight job.
   sessionTag?: string;
 }
@@ -326,13 +326,16 @@ export function useDragAndDropUpload(
       ? `Uploading ${topLevelNames.length} items...`
       : '';
 
+    // Captured before the tree walk below (which can itself take a while for a large directory), so every empty directory this drop creates lands under the path that was in view at drop time, even if the user has since navigated elsewhere.
+    const pathAtDropStart = path.value;
+
     try {
       if (hasItems) {
         // Use items for directory support
         const { files: droppedFiles, emptyDirectories } = await processDroppedItems(event.dataTransfer!.items);
 
         for (const directoryPath of emptyDirectories) {
-          await onEmptyDirectory?.(directoryPath);
+          await onEmptyDirectory?.(directoryPath, pathAtDropStart);
         }
 
         await uploadFiles(droppedFiles);

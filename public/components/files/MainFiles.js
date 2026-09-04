@@ -135,8 +135,7 @@ export default function MainFiles({
       await uploadFiles(chosenFiles);
     };
   }
-  async function createDirectoryFromPath(dirPath) {
-    const pathInView = path.value;
+  async function createDirectoryFromPath(dirPath, pathInView) {
     try {
       isCreatingDirectories.value = true;
       currentDirectoryName.value = dirPath;

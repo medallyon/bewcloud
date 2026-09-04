@@ -213,6 +213,7 @@ export function useDragAndDropUpload({
     isUploading.value = true;
     uploadError.value = '';
     uploadProgress.value = topLevelNames.length === 1 ? `Uploading ${topLevelNames[0]}...` : topLevelNames.length > 1 ? `Uploading ${topLevelNames.length} items...` : '';
+    const pathAtDropStart = path.value;
     try {
       if (hasItems) {
         const {
@@ -220,7 +221,7 @@ export function useDragAndDropUpload({
           emptyDirectories
         } = await processDroppedItems(event.dataTransfer.items);
         for (const directoryPath of emptyDirectories) {
-          await onEmptyDirectory?.(directoryPath);
+          await onEmptyDirectory?.(directoryPath, pathAtDropStart);
         }
         await uploadFiles(droppedFiles);
       } else {
