@@ -246,7 +246,7 @@ async function processQueue(job) {
 
         console.error(error);
         broadcastState({
-          error: `${file.name}: ${error.message} (${droppedCount} upload${droppedCount === 1 ? '' : 's'} dropped).`,
+          error: `(${file.name}): ${error.message} (${droppedCount} upload${droppedCount === 1 ? '' : 's'} dropped).`,
         });
         await abandonCurrentJob();
 
@@ -255,7 +255,7 @@ async function processQueue(job) {
 
       console.error(error);
       await cleanupAbortedChunkUpload(job);
-      broadcastState({ error: `${file.name}: ${String(error?.message || error)}` });
+      broadcastState({ error: `(${file.name}): ${String(error?.message || error)}` });
     }
   }
 
