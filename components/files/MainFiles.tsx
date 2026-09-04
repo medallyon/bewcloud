@@ -197,12 +197,15 @@ export default function MainFiles(
 
   // Create a directory from a relative path
   async function createDirectoryFromPath(dirPath: string) {
+    // Captured once up front (mirrors useUploadQueue.ts's enqueueUpload capturing pathInView), so this directory still lands under the path that was in view when the drop started, even if the user has since navigated elsewhere.
+    const pathInView = path.value;
+
     try {
       isCreatingDirectories.value = true;
       currentDirectoryName.value = dirPath;
 
       const requestBody = {
-        parentPath: path.value,
+        parentPath: pathInView,
         name: dirPath, // The API should handle nested path creation
       };
 
@@ -221,6 +224,7 @@ export default function MainFiles(
       }
     } catch (error) {
       console.error(`Failed to create directory ${dirPath}:`, error);
+      uploadError.value = `${dirPath}: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       isCreatingDirectories.value = false;
       currentDirectoryName.value = '';

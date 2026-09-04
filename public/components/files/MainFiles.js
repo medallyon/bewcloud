@@ -136,11 +136,12 @@ export default function MainFiles({
     };
   }
   async function createDirectoryFromPath(dirPath) {
+    const pathInView = path.value;
     try {
       isCreatingDirectories.value = true;
       currentDirectoryName.value = dirPath;
       const requestBody = {
-        parentPath: path.value,
+        parentPath: pathInView,
         name: dirPath
       };
       const response = await fetch(`/api/files/create-directory`, {
@@ -156,6 +157,7 @@ export default function MainFiles({
       }
     } catch (error) {
       console.error(`Failed to create directory ${dirPath}:`, error);
+      uploadError.value = `${dirPath}: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       isCreatingDirectories.value = false;
       currentDirectoryName.value = '';
