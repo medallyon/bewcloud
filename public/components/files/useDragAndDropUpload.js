@@ -97,6 +97,7 @@ export function useDragAndDropUpload({
     onBeforeUpload?.();
     replaceAllMode.value = false;
     skipAllMode.value = false;
+    uploadProgress.value = 'Checking for conflicts...';
     const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
     const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
     const itemsToUpload = [];
@@ -179,6 +180,9 @@ export function useDragAndDropUpload({
   function handleDragOver(event) {
     event.preventDefault();
     event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
   }
   async function handleDrop(event) {
     event.preventDefault();

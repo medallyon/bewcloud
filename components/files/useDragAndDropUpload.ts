@@ -155,6 +155,8 @@ export function useDragAndDropUpload(
     replaceAllMode.value = false; // Reset replace/skip all mode for new upload session
     skipAllMode.value = false;
 
+    uploadProgress.value = 'Checking for conflicts...';
+
     // Check every target path a dropped file will land in (not just the currently-viewed directory), so conflicts in dragged subdirectories are caught too.
     const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
     const existingNamesByPath = new Map(
@@ -268,6 +270,10 @@ export function useDragAndDropUpload(
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
     event.stopPropagation();
+
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
   }
 
   async function handleDrop(event: DragEvent) {
