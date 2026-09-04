@@ -1,6 +1,22 @@
 import { useSignal } from '@preact/signals';
 import { fetchExistingFileNames } from "./existingFileNames.js";
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+export function readAllDirectoryEntries(reader) {
+  const allEntries = [];
+  return new Promise((resolve, reject) => {
+    function readNextBatch() {
+      reader.readEntries(entries => {
+        if (entries.length === 0) {
+          resolve(allEntries);
+          return;
+        }
+        allEntries.push(...entries);
+        readNextBatch();
+      }, reject);
+    }
+    readNextBatch();
+  });
+}
 export function useDragAndDropUpload({
   path,
   isUploading,
@@ -100,38 +116,25 @@ export function useDragAndDropUpload({
     replaceAllMode.value = false;
     skipAllMode.value = false;
   }
-  function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
-    return new Promise((resolve, reject) => {
-      if (entry.isFile) {
-        const fileEntry = entry;
-        fileEntry.file(file => {
-          Object.defineProperty(file, 'webkitRelativePath', {
-            value: currentPath ? `${currentPath}/${file.name}` : file.name,
-            writable: false
-          });
-          filesToUpload.push(file);
-          resolve();
-        }, reject);
-      } else if (entry.isDirectory) {
-        const dirEntry = entry;
-        const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
-        const reader = dirEntry.createReader();
-        reader.readEntries(async entries => {
-          try {
-            if (entries.length === 0) {
-              directoriesToCreate.push(dirPath);
-            } else {
-              await Promise.all(entries.map(childEntry => processEntry(childEntry, dirPath, filesToUpload, directoriesToCreate)));
-            }
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        }, reject);
+  async function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
+    if (entry.isFile) {
+      const fileEntry = entry;
+      const file = await new Promise((resolve, reject) => fileEntry.file(resolve, reject));
+      Object.defineProperty(file, 'webkitRelativePath', {
+        value: currentPath ? `${currentPath}/${file.name}` : file.name,
+        writable: false
+      });
+      filesToUpload.push(file);
+    } else if (entry.isDirectory) {
+      const dirEntry = entry;
+      const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+      const entries = await readAllDirectoryEntries(dirEntry.createReader());
+      if (entries.length === 0) {
+        directoriesToCreate.push(dirPath);
       } else {
-        resolve();
+        await Promise.all(entries.map(childEntry => processEntry(childEntry, dirPath, filesToUpload, directoriesToCreate)));
       }
-    });
+    }
   }
   async function processDroppedItems(items) {
     const filesToUpload = [];

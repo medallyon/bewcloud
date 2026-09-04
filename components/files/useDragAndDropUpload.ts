@@ -31,6 +31,27 @@ interface UseDragAndDropUploadOptions {
   onEmptyDirectory?: (directoryPath: string) => Promise<void>;
 }
 
+// A single readEntries() call can return a partial batch (historically capped around 100 in Chromium) per the File and Directory Entries API spec, so it must be called repeatedly until it resolves with an empty array to get every entry in the directory. Exported so it can be unit tested directly.
+export function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  const allEntries: FileSystemEntry[] = [];
+
+  return new Promise((resolve, reject) => {
+    function readNextBatch() {
+      reader.readEntries((entries) => {
+        if (entries.length === 0) {
+          resolve(allEntries);
+          return;
+        }
+
+        allEntries.push(...entries);
+        readNextBatch();
+      }, reject);
+    }
+
+    readNextBatch();
+  });
+}
+
 // Drag-and-drop (and file-input) upload with naming-conflict resolution (replace/skip/replace-all), shared by MainFiles and MainPhotos. Uploads themselves still go through each caller's own useUploadQueue instance (different upload kind/session per view); this hook only resolves conflicts and hands the survivors over.
 export function useDragAndDropUpload(
   { path, isUploading, uploadProgress, uploadError, enqueueUpload, onBeforeUpload, fileFilter, onEmptyDirectory }:
@@ -153,48 +174,37 @@ export function useDragAndDropUpload(
   }
 
   // Process a single dropped file system entry (file or directory), tagging files with a webkitRelativePath so directory structure survives the upload, and collecting empty directory paths for the caller to create.
-  function processEntry(
+  async function processEntry(
     entry: FileSystemEntry,
     currentPath: string,
     filesToUpload: File[],
     directoriesToCreate: string[],
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (entry.isFile) {
-        const fileEntry = entry as FileSystemFileEntry;
-        fileEntry.file((file) => {
-          // Add webkitRelativePath to maintain directory structure
-          Object.defineProperty(file, 'webkitRelativePath', {
-            value: currentPath ? `${currentPath}/${file.name}` : file.name,
-            writable: false,
-          });
-          filesToUpload.push(file);
-          resolve();
-        }, reject);
-      } else if (entry.isDirectory) {
-        const dirEntry = entry as FileSystemDirectoryEntry;
-        const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await new Promise<File>((resolve, reject) => fileEntry.file(resolve, reject));
 
-        const reader = dirEntry.createReader();
-        reader.readEntries(async (entries) => {
-          try {
-            if (entries.length === 0) {
-              // Empty directory - add to directories to create
-              directoriesToCreate.push(dirPath);
-            } else {
-              await Promise.all(
-                entries.map((childEntry) => processEntry(childEntry, dirPath, filesToUpload, directoriesToCreate)),
-              );
-            }
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        }, reject);
+      // Add webkitRelativePath to maintain directory structure
+      Object.defineProperty(file, 'webkitRelativePath', {
+        value: currentPath ? `${currentPath}/${file.name}` : file.name,
+        writable: false,
+      });
+      filesToUpload.push(file);
+    } else if (entry.isDirectory) {
+      const dirEntry = entry as FileSystemDirectoryEntry;
+      const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+
+      const entries = await readAllDirectoryEntries(dirEntry.createReader());
+
+      if (entries.length === 0) {
+        // Empty directory - add to directories to create
+        directoriesToCreate.push(dirPath);
       } else {
-        resolve();
+        await Promise.all(
+          entries.map((childEntry) => processEntry(childEntry, dirPath, filesToUpload, directoriesToCreate)),
+        );
       }
-    });
+    }
   }
 
   // Recursively walks dropped items (which may be directories) into a flat file list plus any empty directory paths.
