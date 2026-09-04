@@ -25,8 +25,11 @@ export function useDragAndDropUpload({
   }
   function resolveFileConflict(file, targetPath, existingNamesByPath) {
     const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
-    if (!fileExists || replaceAllMode.value) {
+    if (!fileExists) {
       return Promise.resolve('upload');
+    }
+    if (replaceAllMode.value) {
+      return Promise.resolve('replace');
     }
     if (skipAllMode.value) {
       return Promise.resolve('skip');
@@ -37,7 +40,7 @@ export function useDragAndDropUpload({
         existingFileName: file.name,
         onReplace: () => {
           fileConflictModal.value = null;
-          resolve('upload');
+          resolve('replace');
         },
         onSkip: () => {
           fileConflictModal.value = null;
@@ -46,7 +49,7 @@ export function useDragAndDropUpload({
         onReplaceAll: () => {
           replaceAllMode.value = true;
           fileConflictModal.value = null;
-          resolve('upload');
+          resolve('replace');
         },
         onSkipAll: () => {
           skipAllMode.value = true;
@@ -85,11 +88,11 @@ export function useDragAndDropUpload({
         isUploading.value = false;
         return;
       }
-      if (resolution === 'upload') {
+      if (resolution === 'upload' || resolution === 'replace') {
         itemsToUpload.push({
           file,
           parentPath: targetPath,
-          overwrite: true
+          overwrite: resolution === 'replace'
         });
       }
     }

@@ -13,7 +13,7 @@ interface FileConflictState {
   onAbort: () => void;
 }
 
-type ConflictResolution = 'upload' | 'skip' | 'abort';
+type ConflictResolution = 'upload' | 'replace' | 'skip' | 'abort';
 
 interface UseDragAndDropUploadOptions {
   path: Signal<string>;
@@ -60,8 +60,12 @@ export function useDragAndDropUpload(
   ): Promise<ConflictResolution> {
     const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
 
-    if (!fileExists || replaceAllMode.value) {
+    if (!fileExists) {
       return Promise.resolve('upload');
+    }
+
+    if (replaceAllMode.value) {
+      return Promise.resolve('replace');
     }
 
     if (skipAllMode.value) {
@@ -74,7 +78,7 @@ export function useDragAndDropUpload(
         existingFileName: file.name,
         onReplace: () => {
           fileConflictModal.value = null;
-          resolve('upload');
+          resolve('replace');
         },
         onSkip: () => {
           fileConflictModal.value = null;
@@ -83,7 +87,7 @@ export function useDragAndDropUpload(
         onReplaceAll: () => {
           replaceAllMode.value = true;
           fileConflictModal.value = null;
-          resolve('upload');
+          resolve('replace');
         },
         onSkipAll: () => {
           skipAllMode.value = true;
@@ -137,9 +141,8 @@ export function useDragAndDropUpload(
         return;
       }
 
-      if (resolution === 'upload') {
-        // overwrite is always true here: a file that never conflicted writes normally (a no-op); a file that did conflict only reaches this branch because the user chose Replace/Replace All.
-        itemsToUpload.push({ file, parentPath: targetPath, overwrite: true });
+      if (resolution === 'upload' || resolution === 'replace') {
+        itemsToUpload.push({ file, parentPath: targetPath, overwrite: resolution === 'replace' });
       }
     }
 
