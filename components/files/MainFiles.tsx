@@ -801,10 +801,9 @@ export default function MainFiles(
   return (
     <div
       class='relative'
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      {...(!fileShareId
+        ? { onDragEnter: handleDragEnter, onDragLeave: handleDragLeave, onDragOver: handleDragOver, onDrop: handleDrop }
+        : {})}
     >
       {/* Drag and drop overlay */}
       {isDraggingOver.value && !fileShareId && (

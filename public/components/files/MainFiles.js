@@ -1,3 +1,4 @@
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 import { useSignal } from '@preact/signals';
 import { sortDirectories, sortFiles } from '/public/ts/utils/files.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
@@ -599,13 +600,14 @@ export default function MainFiles({
     }
     isDeleting.value = false;
   }
-  return h("div", {
-    class: "relative",
+  return h("div", _extends({
+    class: "relative"
+  }, !fileShareId ? {
     onDragEnter: handleDragEnter,
     onDragLeave: handleDragLeave,
     onDragOver: handleDragOver,
     onDrop: handleDrop
-  }, isDraggingOver.value && !fileShareId && h("div", {
+  } : {}), isDraggingOver.value && !fileShareId && h("div", {
     class: "fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
   }, h("div", {
     class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
