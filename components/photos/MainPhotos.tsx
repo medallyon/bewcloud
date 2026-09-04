@@ -273,7 +273,7 @@ export default function MainPhotos(
 
       <FileConflictModal
         isOpen={fileConflictModal.value?.isOpen || false}
-        existingFileName={fileConflictModal.value?.existingFileName || ''}
+        filePath={fileConflictModal.value?.filePath || ''}
         onReplace={fileConflictModal.value?.onReplace || (() => {})}
         onSkip={fileConflictModal.value?.onSkip || (() => {})}
         onReplaceAll={fileConflictModal.value?.onReplaceAll || (() => {})}

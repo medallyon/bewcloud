@@ -1,6 +1,6 @@
 interface FileConflictModalProps {
   isOpen: boolean;
-  existingFileName: string;
+  filePath: string;
   onReplace: () => void;
   onSkip: () => void;
   onReplaceAll: () => void;
@@ -10,7 +10,7 @@ interface FileConflictModalProps {
 
 // Shown by useDragAndDropUpload when an uploaded file's name already exists at the target path.
 export default function FileConflictModal(
-  { isOpen, existingFileName, onReplace, onSkip, onReplaceAll, onSkipAll, onAbort }: FileConflictModalProps,
+  { isOpen, filePath, onReplace, onSkip, onReplaceAll, onSkipAll, onAbort }: FileConflictModalProps,
 ) {
   return (
     <>
@@ -27,27 +27,12 @@ export default function FileConflictModal(
         <h1 class='text-2xl font-semibold my-5'>File Already Exists</h1>
         <section class='py-5 my-2 border-y border-slate-500'>
           <p class='text-slate-300'>
-            The file <strong class='text-white'>{existingFileName}</strong>{' '}
+            The file <strong class='text-white'>{filePath}</strong>{' '}
             already exists in this location. What would you like to do?
           </p>
         </section>
-        {/* 3-column grid so Replace/Replace All line up with the same widths as Skip/Skip All below them; the empty cell on row 1 reserves the Abort Upload column so only row 2 has it. */}
+        {/* 3-column grid so Skip/Skip All line up with the same widths as Replace/Replace All below them; the empty cell on row 1 reserves the Abort Upload column so only row 2 has it. Skip comes first in the DOM (and thus tab order) so the non-destructive default gets focused first. */}
         <footer class='grid grid-cols-[1fr_1fr_auto] gap-2'>
-          <button
-            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
-            onClick={() => onReplace()}
-            type='button'
-          >
-            Replace
-          </button>
-          <button
-            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
-            onClick={() => onReplaceAll()}
-            type='button'
-          >
-            Replace All
-          </button>
-          <div />
           <button
             class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
             onClick={() => onSkip()}
@@ -61,6 +46,21 @@ export default function FileConflictModal(
             type='button'
           >
             Skip All
+          </button>
+          <div />
+          <button
+            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
+            onClick={() => onReplace()}
+            type='button'
+          >
+            Replace
+          </button>
+          <button
+            class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
+            onClick={() => onReplaceAll()}
+            type='button'
+          >
+            Replace All
           </button>
           <button
             class='px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md'

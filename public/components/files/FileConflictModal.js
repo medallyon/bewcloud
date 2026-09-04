@@ -1,6 +1,6 @@
 export default function FileConflictModal({
   isOpen,
-  existingFileName,
+  filePath,
   onReplace,
   onSkip,
   onReplaceAll,
@@ -19,17 +19,9 @@ export default function FileConflictModal({
     class: "text-slate-300"
   }, "The file ", h("strong", {
     class: "text-white"
-  }, existingFileName), ' ', "already exists in this location. What would you like to do?")), h("footer", {
+  }, filePath), ' ', "already exists in this location. What would you like to do?")), h("footer", {
     class: "grid grid-cols-[1fr_1fr_auto] gap-2"
   }, h("button", {
-    class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
-    onClick: () => onReplace(),
-    type: "button"
-  }, "Replace"), h("button", {
-    class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
-    onClick: () => onReplaceAll(),
-    type: "button"
-  }, "Replace All"), h("div", null), h("button", {
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onSkip(),
     type: "button"
@@ -37,7 +29,15 @@ export default function FileConflictModal({
     class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
     onClick: () => onSkipAll(),
     type: "button"
-  }, "Skip All"), h("button", {
+  }, "Skip All"), h("div", null), h("button", {
+    class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
+    onClick: () => onReplace(),
+    type: "button"
+  }, "Replace"), h("button", {
+    class: "px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md",
+    onClick: () => onReplaceAll(),
+    type: "button"
+  }, "Replace All"), h("button", {
     class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md",
     onClick: () => onAbort(),
     type: "button"

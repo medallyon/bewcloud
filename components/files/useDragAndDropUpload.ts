@@ -5,7 +5,7 @@ import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 
 interface FileConflictState {
   isOpen: boolean;
-  existingFileName: string;
+  filePath: string;
   onReplace: () => void;
   onSkip: () => void;
   onReplaceAll: () => void;
@@ -107,7 +107,7 @@ export function useDragAndDropUpload(
     return new Promise((resolve) => {
       fileConflictModal.value = {
         isOpen: true,
-        existingFileName: file.name,
+        filePath: `${targetPath}${file.name}`,
         onReplace: () => {
           fileConflictModal.value = null;
           resolve('replace');

@@ -202,7 +202,7 @@ export default function MainPhotos({
     onClose: onCloseCreateDirectory
   }), h(FileConflictModal, {
     isOpen: fileConflictModal.value?.isOpen || false,
-    existingFileName: fileConflictModal.value?.existingFileName || '',
+    filePath: fileConflictModal.value?.filePath || '',
     onReplace: fileConflictModal.value?.onReplace || (() => {}),
     onSkip: fileConflictModal.value?.onSkip || (() => {}),
     onReplaceAll: fileConflictModal.value?.onReplaceAll || (() => {}),

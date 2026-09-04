@@ -54,7 +54,7 @@ export function useDragAndDropUpload({
     return new Promise(resolve => {
       fileConflictModal.value = {
         isOpen: true,
-        existingFileName: file.name,
+        filePath: `${targetPath}${file.name}`,
         onReplace: () => {
           fileConflictModal.value = null;
           resolve('replace');
