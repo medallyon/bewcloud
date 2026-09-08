@@ -209,24 +209,25 @@ export function useDragAndDropUpload({
     if (!hasItems && !hasFiles) {
       return;
     }
-    const topLevelNames = hasItems ? Array.from(event.dataTransfer.items).map(item => item.kind === 'file' ? item.webkitGetAsEntry()?.name : undefined).filter(name => !!name) : Array.from(event.dataTransfer.files).map(file => file.name);
+    const fallbackFiles = hasFiles ? Array.from(event.dataTransfer.files) : [];
+    const topLevelNames = hasItems ? Array.from(event.dataTransfer.items).map(item => item.kind === 'file' ? item.webkitGetAsEntry()?.name : undefined).filter(name => !!name) : fallbackFiles.map(file => file.name);
     isUploading.value = true;
     uploadError.value = '';
     uploadProgress.value = topLevelNames.length === 1 ? `Uploading ${topLevelNames[0]}...` : topLevelNames.length > 1 ? `Uploading ${topLevelNames.length} items...` : '';
     const pathAtDropStart = path.value;
     try {
-      if (hasItems) {
-        const {
-          files: droppedFiles,
-          emptyDirectories
-        } = await processDroppedItems(event.dataTransfer.items);
-        for (const directoryPath of emptyDirectories) {
-          await onEmptyDirectory?.(directoryPath, pathAtDropStart);
-        }
-        await uploadFiles(droppedFiles);
-      } else {
-        await uploadFiles(Array.from(event.dataTransfer.files));
+      const {
+        files: droppedFiles,
+        emptyDirectories
+      } = hasItems ? await processDroppedItems(event.dataTransfer.items) : {
+        files: [],
+        emptyDirectories: []
+      };
+      for (const directoryPath of emptyDirectories) {
+        await onEmptyDirectory?.(directoryPath, pathAtDropStart);
       }
+      const filesToUpload = droppedFiles.length === 0 && emptyDirectories.length === 0 ? fallbackFiles : droppedFiles;
+      await uploadFiles(filesToUpload);
     } catch (error) {
       console.error('Failed to process dropped files:', error);
       uploadError.value = error instanceof Error ? error.message : String(error);

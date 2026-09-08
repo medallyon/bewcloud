@@ -311,12 +311,15 @@ export function useDragAndDropUpload(
       return;
     }
 
-    // Immediate feedback while we walk the dropped tree below, which (for a directory with many files) can itself take a moment before uploadFiles even starts its own conflict check. Must read entry names synchronously here (before any await), since dataTransfer.items becomes invalid once the drop event handler yields.
+    // Both of these must be read synchronously here (before any await), since dataTransfer becomes invalid once the drop event handler yields.
+    const fallbackFiles = hasFiles ? Array.from(event.dataTransfer!.files) : [];
+
+    // Immediate feedback while we walk the dropped tree below, which (for a directory with many files) can itself take a moment before uploadFiles even starts its own conflict check.
     const topLevelNames = hasItems
       ? Array.from(event.dataTransfer!.items)
         .map((item) => item.kind === 'file' ? item.webkitGetAsEntry()?.name : undefined)
         .filter((name): name is string => !!name)
-      : Array.from(event.dataTransfer!.files).map((file) => file.name);
+      : fallbackFiles.map((file) => file.name);
 
     isUploading.value = true;
     uploadError.value = '';
@@ -330,19 +333,19 @@ export function useDragAndDropUpload(
     const pathAtDropStart = path.value;
 
     try {
-      if (hasItems) {
-        // Use items for directory support
-        const { files: droppedFiles, emptyDirectories } = await processDroppedItems(event.dataTransfer!.items);
+      // Items are what carry directory structure, so they're walked first when present.
+      const { files: droppedFiles, emptyDirectories } = hasItems
+        ? await processDroppedItems(event.dataTransfer!.items)
+        : { files: [] as File[], emptyDirectories: [] as string[] };
 
-        for (const directoryPath of emptyDirectories) {
-          await onEmptyDirectory?.(directoryPath, pathAtDropStart);
-        }
-
-        await uploadFiles(droppedFiles);
-      } else {
-        // Fallback to files for compatibility
-        await uploadFiles(Array.from(event.dataTransfer!.files));
+      for (const directoryPath of emptyDirectories) {
+        await onEmptyDirectory?.(directoryPath, pathAtDropStart);
       }
+
+      // The walk can come back with nothing even though the drop did carry files, because webkitGetAsEntry() is allowed to return null. Decide on what the walk actually produced rather than on whether items were present, or that case is a silent no-op.
+      const filesToUpload = droppedFiles.length === 0 && emptyDirectories.length === 0 ? fallbackFiles : droppedFiles;
+
+      await uploadFiles(filesToUpload);
     } catch (error) {
       console.error('Failed to process dropped files:', error);
       uploadError.value = error instanceof Error ? error.message : String(error);
