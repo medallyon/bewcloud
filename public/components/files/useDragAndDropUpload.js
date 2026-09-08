@@ -1,6 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
-import { fetchExistingFileNames } from "./existingFileNames.js";
+import { fetchExistingNames } from "./existingFileNames.js";
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 export function readAllDirectoryEntries(reader) {
   const allEntries = [];
@@ -53,8 +53,12 @@ export function useDragAndDropUpload({
     return `${path.value}${directoryPath}`;
   }
   function resolveFileConflict(file, targetPath, existingNamesByPath) {
-    const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
-    if (!fileExists) {
+    const existingNames = existingNamesByPath.get(targetPath);
+    if (existingNames?.directoryNames.has(file.name)) {
+      uploadError.value = `${targetPath}${file.name}: A directory with this name already exists.`;
+      return Promise.resolve('skip');
+    }
+    if (!existingNames?.fileNames.has(file.name)) {
       return Promise.resolve('upload');
     }
     if (replaceAllMode.value) {
@@ -103,6 +107,7 @@ export function useDragAndDropUpload({
       return;
     }
     isResolvingConflicts.value = true;
+    uploadError.value = '';
     onBeforeUpload?.();
     replaceAllMode.value = false;
     skipAllMode.value = false;
@@ -110,7 +115,7 @@ export function useDragAndDropUpload({
     try {
       resolveProgress.value = 'Checking for conflicts...';
       const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
-      const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
+      const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingNames(targetPath)])));
       let enqueued = Promise.resolve();
       for (const file of filesToUpload) {
         const targetPath = getTargetPath(file);

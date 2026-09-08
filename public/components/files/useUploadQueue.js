@@ -1,7 +1,7 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
-import { fetchExistingFileNames } from "./existingFileNames.js";
+import { fetchExistingNames } from "./existingFileNames.js";
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
 export function useUploadQueue({
   isEnabled,
@@ -125,7 +125,8 @@ export function useUploadQueue({
       return;
     }
     const pathInView = path.value;
-    if (!isUploading.value) {
+    const isPartOfBatch = items.some(item => item.batchId);
+    if (!isPartOfBatch) {
       uploadProgress.value = '';
       uploadError.value = '';
     }
@@ -133,9 +134,9 @@ export function useUploadQueue({
     let itemsToUpload = items;
     if (checkExistingFiles) {
       const uniqueParentPaths = [...new Set(items.map(item => item.parentPath))];
-      const existingNamesByParentPath = new Map(await Promise.all(uniqueParentPaths.map(async parentPath => [parentPath, await fetchExistingFileNames(parentPath)])));
+      const existingNamesByParentPath = new Map(await Promise.all(uniqueParentPaths.map(async parentPath => [parentPath, await fetchExistingNames(parentPath)])));
       itemsToUpload = items.filter(item => {
-        if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
+        if (existingNamesByParentPath.get(item.parentPath)?.fileNames.has(item.file.name)) {
           uploadError.value = `${item.file.name}: A file with this name already exists.`;
           return false;
         }

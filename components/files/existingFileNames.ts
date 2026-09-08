@@ -1,7 +1,12 @@
 import { RequestBody as GetFilesRequestBody, ResponseBody as GetFilesResponseBody } from '/pages/api/files/get.ts';
 
-// A directory's existing file names, used to detect naming conflicts before an upload. Fails open (empty set) on any error, so a check that itself fails doesn't block an upload that turns out fine, or wrongly report a clash.
-export async function fetchExistingFileNames(parentPath: string): Promise<Set<string>> {
+export interface ExistingNames {
+  fileNames: Set<string>;
+  directoryNames: Set<string>;
+}
+
+// The names already taken in a directory, used to detect naming conflicts before an upload. Directory names count: a file can't be written over a directory, so that clash has to be caught here rather than failing mid-upload. Fails open (empty sets) on any error, so a check that itself fails doesn't block an upload that turns out fine, or wrongly report a clash.
+export async function fetchExistingNames(parentPath: string): Promise<ExistingNames> {
   try {
     const requestBody: GetFilesRequestBody = { parentPath };
 
@@ -13,14 +18,17 @@ export async function fetchExistingFileNames(parentPath: string): Promise<Set<st
     });
 
     if (!response.ok) {
-      return new Set();
+      return { fileNames: new Set(), directoryNames: new Set() };
     }
 
     const result = await response.json() as GetFilesResponseBody;
 
-    return new Set(result.files.map((file) => file.file_name));
+    return {
+      fileNames: new Set(result.files.map((file) => file.file_name)),
+      directoryNames: new Set(result.directories.map((directory) => directory.directory_name)),
+    };
   } catch (error) {
     console.error(error);
-    return new Set();
+    return { fileNames: new Set(), directoryNames: new Set() };
   }
 }

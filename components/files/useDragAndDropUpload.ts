@@ -1,7 +1,7 @@
 import { Signal, useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 
-import { fetchExistingFileNames } from './existingFileNames.ts';
+import { ExistingNames, fetchExistingNames } from './existingFileNames.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
 
 interface FileConflictState {
@@ -102,11 +102,17 @@ export function useDragAndDropUpload(
   function resolveFileConflict(
     file: File,
     targetPath: string,
-    existingNamesByPath: Map<string, Set<string>>,
+    existingNamesByPath: Map<string, ExistingNames>,
   ): Promise<ConflictResolution> {
-    const fileExists = existingNamesByPath.get(targetPath)?.has(file.name) ?? false;
+    const existingNames = existingNamesByPath.get(targetPath);
 
-    if (!fileExists) {
+    if (existingNames?.directoryNames.has(file.name)) {
+      // None of the modal's answers apply to a directory of the same name: a file can't be written over one, so replacing it isn't on offer. Skipping it here reports the clash straight away instead of letting the upload fail part-way through.
+      uploadError.value = `${targetPath}${file.name}: A directory with this name already exists.`;
+      return Promise.resolve('skip');
+    }
+
+    if (!existingNames?.fileNames.has(file.name)) {
       return Promise.resolve('upload');
     }
 
@@ -163,6 +169,7 @@ export function useDragAndDropUpload(
     }
 
     isResolvingConflicts.value = true;
+    uploadError.value = '';
     onBeforeUpload?.();
     replaceAllMode.value = false; // Reset replace/skip all mode for new upload session
     skipAllMode.value = false;
@@ -178,7 +185,7 @@ export function useDragAndDropUpload(
       const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
       const existingNamesByPath = new Map(
         await Promise.all(
-          targetPaths.map(async (targetPath) => [targetPath, await fetchExistingFileNames(targetPath)] as const),
+          targetPaths.map(async (targetPath) => [targetPath, await fetchExistingNames(targetPath)] as const),
         ),
       );
 

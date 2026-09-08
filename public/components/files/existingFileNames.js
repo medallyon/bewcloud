@@ -1,4 +1,4 @@
-export async function fetchExistingFileNames(parentPath) {
+export async function fetchExistingNames(parentPath) {
   try {
     const requestBody = {
       parentPath
@@ -9,12 +9,21 @@ export async function fetchExistingFileNames(parentPath) {
       signal: AbortSignal.timeout(10_000)
     });
     if (!response.ok) {
-      return new Set();
+      return {
+        fileNames: new Set(),
+        directoryNames: new Set()
+      };
     }
     const result = await response.json();
-    return new Set(result.files.map(file => file.file_name));
+    return {
+      fileNames: new Set(result.files.map(file => file.file_name)),
+      directoryNames: new Set(result.directories.map(directory => directory.directory_name))
+    };
   } catch (error) {
     console.error(error);
-    return new Set();
+    return {
+      fileNames: new Set(),
+      directoryNames: new Set()
+    };
   }
 }

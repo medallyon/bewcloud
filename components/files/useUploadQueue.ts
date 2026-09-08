@@ -5,7 +5,7 @@ import { Directory, DirectoryFile } from '/lib/types.ts';
 import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
-import { fetchExistingFileNames } from './existingFileNames.ts';
+import { fetchExistingNames } from './existingFileNames.ts';
 
 // 10 MB chunks keep each request faster.
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
@@ -192,8 +192,10 @@ export function useUploadQueue(
     // Capture once, before any await: the user may navigate away while the pre-upload existence check or the upload itself is in flight, which would change path.value and cause the eventual response to refresh the wrong directory listing.
     const pathInView = path.value;
 
-    // A drop is enqueued file by file as each conflict is answered (see useDragAndDropUpload), so only the first call of a batch clears what the previous one left behind: a later call must not wipe an error this batch has already produced.
-    if (!isUploading.value) {
+    // A drop is enqueued file by file as each conflict is answered (see useDragAndDropUpload), and clears these itself before it starts. By then it may already have reported a clash of its own, so a batched item never resets them here.
+    const isPartOfBatch = items.some((item) => item.batchId);
+
+    if (!isPartOfBatch) {
       uploadProgress.value = '';
       uploadError.value = '';
     }
@@ -207,13 +209,13 @@ export function useUploadQueue(
       const existingNamesByParentPath = new Map(
         await Promise.all(
           uniqueParentPaths.map(
-            async (parentPath) => [parentPath, await fetchExistingFileNames(parentPath)] as const,
+            async (parentPath) => [parentPath, await fetchExistingNames(parentPath)] as const,
           ),
         ),
       );
 
       itemsToUpload = items.filter((item) => {
-        if (existingNamesByParentPath.get(item.parentPath)?.has(item.file.name)) {
+        if (existingNamesByParentPath.get(item.parentPath)?.fileNames.has(item.file.name)) {
           uploadError.value = `${item.file.name}: A file with this name already exists.`;
           return false;
         }
