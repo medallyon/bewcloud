@@ -6,8 +6,13 @@ import CreateDirectoryModal from "/public/components/files/CreateDirectoryModal.
 import ListFiles from "/public/components/files/ListFiles.js";
 import FilesBreadcrumb from "/public/components/files/FilesBreadcrumb.js";
 import ListPhotos from "/public/components/photos/ListPhotos.js";
+import { PHOTO_EXTENSIONS } from '/public/ts/utils/photos.ts';
 function isPhotoFile(file) {
-  return file.type.startsWith('image/') || file.type.startsWith('video/');
+  if (file.type) {
+    return file.type.startsWith('image/') || file.type.startsWith('video/');
+  }
+  const lowercaseFileName = file.name.toLocaleLowerCase();
+  return PHOTO_EXTENSIONS.some(extension => lowercaseFileName.endsWith(`.${extension}`));
 }
 export default function MainPhotos({
   initialDirectories,
