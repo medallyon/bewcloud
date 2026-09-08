@@ -216,7 +216,9 @@ export default function MainFiles(
       }
 
       const result = await response.json();
-      if (result.success) {
+
+      // The listing that comes back is of pathAtDropStart, which the user may have navigated away from during the tree walk. Same reasoning as useUploadQueue's own check: only apply it when it's still the directory on screen.
+      if (result.success && pathInView === path.value) {
         directories.value = [...result.newDirectories];
       }
     } catch (error) {

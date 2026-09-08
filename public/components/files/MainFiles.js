@@ -151,7 +151,7 @@ export default function MainFiles({
         throw new Error(`Failed to create directory. ${response.statusText} ${await response.text()}`);
       }
       const result = await response.json();
-      if (result.success) {
+      if (result.success && pathInView === path.value) {
         directories.value = [...result.newDirectories];
       }
     } catch (error) {
