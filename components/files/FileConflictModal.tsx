@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'preact/hooks';
+
 interface FileConflictModalProps {
   isOpen: boolean;
   filePath: string;
@@ -12,6 +14,28 @@ interface FileConflictModalProps {
 export default function FileConflictModal(
   { isOpen, filePath, onReplace, onSkip, onReplaceAll, onSkipAll, onAbort }: FileConflictModalProps,
 ) {
+  const skipButtonRef = useRef<HTMLButtonElement>(null);
+
+  // The prompt interrupts whatever the user was doing, so it takes the focus itself, and Escape answers it the same way the focused button does: skip this one file, leaving the rest of the batch alone.
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    skipButtonRef.current?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onSkip();
+      }
+    }
+
+    globalThis.addEventListener('keydown', onKeyDown);
+
+    return () => globalThis.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onSkip]);
+
   return (
     <>
       <section
@@ -30,10 +54,14 @@ export default function FileConflictModal(
             The file <strong class='text-white'>{filePath}</strong>{' '}
             already exists in this location. What would you like to do?
           </p>
+          <p class='text-slate-400 text-sm mt-3'>
+            Replacing overwrites the existing file permanently. It is not moved to Trash.
+          </p>
         </section>
         {/* 3-column grid so Skip/Skip All line up with the same widths as Replace/Replace All below them; the empty cell on row 1 reserves the Abort Upload column so only row 2 has it. Skip comes first in the DOM (and thus tab order) so the non-destructive default gets focused first. */}
         <footer class='grid grid-cols-[1fr_1fr_auto] gap-2'>
           <button
+            ref={skipButtonRef}
             class='px-5 py-2 bg-slate-600 hover:bg-slate-500 text-white cursor-pointer rounded-md'
             onClick={() => onSkip()}
             type='button'
