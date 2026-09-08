@@ -14,6 +14,8 @@ interface UploadQueueItem {
   file: File;
   parentPath: string;
   overwrite?: boolean;
+  // Identifies the drop this item came from, so aborting that drop's conflict prompt drops only its own items from the worker's queue.
+  batchId?: string;
 }
 
 interface UseUploadQueueOptions {
@@ -190,9 +192,13 @@ export function useUploadQueue(
     // Capture once, before any await: the user may navigate away while the pre-upload existence check or the upload itself is in flight, which would change path.value and cause the eventual response to refresh the wrong directory listing.
     const pathInView = path.value;
 
+    // A drop is enqueued file by file as each conflict is answered (see useDragAndDropUpload), so only the first call of a batch clears what the previous one left behind: a later call must not wipe an error this batch has already produced.
+    if (!isUploading.value) {
+      uploadProgress.value = '';
+      uploadError.value = '';
+    }
+
     isUploading.value = true;
-    uploadProgress.value = '';
-    uploadError.value = '';
 
     let itemsToUpload = items;
 

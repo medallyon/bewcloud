@@ -20,7 +20,7 @@ interface UseDragAndDropUploadOptions {
   path: Signal<string>;
   // Caller's own error signal (from useUploadQueue), reused here so a tree-walk failure (before enqueueUpload is ever reached) still shows up in the same place upload failures do.
   uploadError: Signal<string>;
-  enqueueUpload: (items: { file: File; parentPath: string; overwrite: boolean }[]) => Promise<void>;
+  enqueueUpload: (items: { file: File; parentPath: string; overwrite: boolean; batchId: string }[]) => Promise<void>;
   // Called once, right before conflict resolution starts, e.g. to close an open dropdown.
   onBeforeUpload?: () => void;
   // Restricts which dropped/chosen files are uploaded, e.g. Photos only wants images and videos.
@@ -142,8 +142,6 @@ export function useDragAndDropUpload(
         },
         onAbort: () => {
           fileConflictModal.value = null;
-          // Also stops any upload the service worker already has in flight/queued for this session
-          postToUploadServiceWorker({ type: 'ABORT_UPLOADS', sessionTag });
           resolve('abort');
         },
       };
@@ -169,6 +167,9 @@ export function useDragAndDropUpload(
     replaceAllMode.value = false; // Reset replace/skip all mode for new upload session
     skipAllMode.value = false;
 
+    // Identifies every item this call hands to the queue, so an Abort part-way through takes back exactly what this call already enqueued and nothing else.
+    const batchId = crypto.randomUUID();
+
     try {
       // Immediate feedback for the conflict-check below, which is a network round-trip per target path.
       resolveProgress.value = 'Checking for conflicts...';
@@ -181,23 +182,28 @@ export function useDragAndDropUpload(
         ),
       );
 
-      const itemsToUpload: { file: File; parentPath: string; overwrite: boolean }[] = [];
+      // Each answered file is handed over immediately rather than after the whole batch, so uploading starts while the user is still working through the prompts, and an Abort has this batch's own queued items to take back. Chained instead of awaited in the loop: without a service worker enqueueUpload does the upload itself, and awaiting it here would stall the next prompt behind it.
+      let enqueued: Promise<void> = Promise.resolve();
 
       for (const file of filesToUpload) {
         const targetPath = getTargetPath(file);
         const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
 
         if (resolution === 'abort') {
-          // Discards everything resolved so far in this batch too, not just the remaining files.
+          // Takes back everything already handed over for this batch too, not just the files not yet answered for. Letting the chain settle first means no item can still be on its way to the worker when the abort message arrives. Scoped to the batch, so an upload from an earlier drop (or another view or tab, which share the session tag) keeps running.
+          await enqueued.catch(() => {});
+          postToUploadServiceWorker({ type: 'ABORT_UPLOADS', sessionTag, batchId });
+
           return;
         }
 
         if (resolution === 'upload' || resolution === 'replace') {
-          itemsToUpload.push({ file, parentPath: targetPath, overwrite: resolution === 'replace' });
+          const item = { file, parentPath: targetPath, overwrite: resolution === 'replace', batchId };
+          enqueued = enqueued.then(() => enqueueUpload([item]));
         }
       }
 
-      await enqueueUpload(itemsToUpload);
+      await enqueued;
     } finally {
       isResolvingConflicts.value = false;
       resolveProgress.value = '';

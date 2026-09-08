@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 
 const broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
 
-let currentJob = null; // { queue: [{ file, parentPath, pathInView, overwrite }], uploadProgress, sessionTag, abortController }
+let currentJob = null; // { queue: [{ file, parentPath, pathInView, overwrite, batchId }], uploadProgress, sessionTag, abortController }
 
 // A queue outlives the session that created it, so the upload endpoints refuse requests tagged with a session other than the one their cookie now belongs to. When that happens there's nothing left to retry: the rest of the queue is dropped instead of being uploaded as whoever is logged in now.
 class UploadSessionGoneError extends Error {}
@@ -69,6 +69,23 @@ function isUnderDeletedPath(parentPath, deletedPath) {
 function handleDirectoryDeleted(job, deletedPath) {
   const currentAffected = isUnderDeletedPath(job.currentItemParentPath, deletedPath);
   job.queue = job.queue.filter((item) => !isUnderDeletedPath(item.parentPath, deletedPath));
+
+  if (currentAffected) {
+    job.currentItemCancelled = true;
+    job.currentItemKind = '';
+    job.uploadProgress = '';
+    const previousAbortController = job.abortController;
+    job.abortController = new AbortController();
+    previousAbortController.abort();
+  }
+
+  broadcastState();
+}
+
+// Drops the queued items belonging to one drop's batch, leaving every other batch's items alone. Same shape as handleDirectoryDeleted above: if the in-flight item is one of them, only that fetch is aborted and the job AbortController is replaced so later items still run. Without this an Abort would kill whatever the queue happened to be uploading for some other view or tab.
+function handleBatchAborted(job, batchId) {
+  const currentAffected = !job.currentItemCancelled && job.currentItemBatchId === batchId;
+  job.queue = job.queue.filter((item) => item.batchId !== batchId);
 
   if (currentAffected) {
     job.currentItemCancelled = true;
@@ -211,11 +228,12 @@ async function uploadFileChunked(job, file, parentPath, pathInView, overwrite) {
 
 async function processQueue(job) {
   while (job.queue.length > 0) {
-    const { file, parentPath, pathInView, kind, overwrite } = job.queue.shift();
+    const { file, parentPath, pathInView, kind, overwrite, batchId } = job.queue.shift();
 
     job.uploadProgress = '';
     job.currentItemKind = kind || 'file';
     job.currentItemParentPath = parentPath;
+    job.currentItemBatchId = batchId;
     job.currentUploadId = undefined;
     job.currentItemCancelled = false;
     broadcastState();
@@ -269,10 +287,19 @@ self.addEventListener('message', (event) => {
   }
 
   if (message.type === 'ABORT_UPLOADS') {
-    // No sessionTag (e.g. logout-time cleanup) aborts unconditionally; a tagged abort only cancels a matching job.
+    // A batch id scopes the abort to the one drop it came from. Without one (logout-time cleanup) everything goes, as before. The session tag alone is not scope enough: it comes from the login session, so it is the same across Files/Photos/Notes and every open tab.
+    if (message.batchId) {
+      if (currentJob && message.sessionTag === currentJob.sessionTag) {
+        handleBatchAborted(currentJob, message.batchId);
+      }
+
+      return;
+    }
+
     if (!message.sessionTag || !currentJob || message.sessionTag === currentJob.sessionTag) {
       event.waitUntil(abandonCurrentJob());
     }
+
     return;
   }
 

@@ -87,10 +87,6 @@ export function useDragAndDropUpload({
         },
         onAbort: () => {
           fileConflictModal.value = null;
-          postToUploadServiceWorker({
-            type: 'ABORT_UPLOADS',
-            sessionTag
-          });
           resolve('abort');
         }
       };
@@ -110,26 +106,35 @@ export function useDragAndDropUpload({
     onBeforeUpload?.();
     replaceAllMode.value = false;
     skipAllMode.value = false;
+    const batchId = crypto.randomUUID();
     try {
       resolveProgress.value = 'Checking for conflicts...';
       const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
       const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
-      const itemsToUpload = [];
+      let enqueued = Promise.resolve();
       for (const file of filesToUpload) {
         const targetPath = getTargetPath(file);
         const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
         if (resolution === 'abort') {
+          await enqueued.catch(() => {});
+          postToUploadServiceWorker({
+            type: 'ABORT_UPLOADS',
+            sessionTag,
+            batchId
+          });
           return;
         }
         if (resolution === 'upload' || resolution === 'replace') {
-          itemsToUpload.push({
+          const item = {
             file,
             parentPath: targetPath,
-            overwrite: resolution === 'replace'
-          });
+            overwrite: resolution === 'replace',
+            batchId
+          };
+          enqueued = enqueued.then(() => enqueueUpload([item]));
         }
       }
-      await enqueueUpload(itemsToUpload);
+      await enqueued;
     } finally {
       isResolvingConflicts.value = false;
       resolveProgress.value = '';

@@ -125,9 +125,11 @@ export function useUploadQueue({
       return;
     }
     const pathInView = path.value;
+    if (!isUploading.value) {
+      uploadProgress.value = '';
+      uploadError.value = '';
+    }
     isUploading.value = true;
-    uploadProgress.value = '';
-    uploadError.value = '';
     let itemsToUpload = items;
     if (checkExistingFiles) {
       const uniqueParentPaths = [...new Set(items.map(item => item.parentPath))];
