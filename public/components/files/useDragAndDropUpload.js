@@ -20,8 +20,6 @@ export function readAllDirectoryEntries(reader) {
 }
 export function useDragAndDropUpload({
   path,
-  isUploading,
-  uploadProgress,
   uploadError,
   enqueueUpload,
   onBeforeUpload,
@@ -29,6 +27,8 @@ export function useDragAndDropUpload({
   onEmptyDirectory,
   sessionTag = ''
 }) {
+  const isResolvingConflicts = useSignal(false);
+  const resolveProgress = useSignal('');
   const isDraggingOver = useSignal(false);
   const dragCounter = useSignal(0);
   const fileConflictModal = useSignal(null);
@@ -102,37 +102,40 @@ export function useDragAndDropUpload({
       if (candidateFiles.length > 0) {
         uploadError.value = 'No supported files were found in the dropped items.';
       }
-      isUploading.value = false;
+      isResolvingConflicts.value = false;
+      resolveProgress.value = '';
       return;
     }
-    isUploading.value = true;
+    isResolvingConflicts.value = true;
     onBeforeUpload?.();
     replaceAllMode.value = false;
     skipAllMode.value = false;
-    uploadProgress.value = 'Checking for conflicts...';
-    const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
-    const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
-    const itemsToUpload = [];
-    for (const file of filesToUpload) {
-      const targetPath = getTargetPath(file);
-      const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
-      if (resolution === 'abort') {
-        replaceAllMode.value = false;
-        skipAllMode.value = false;
-        isUploading.value = false;
-        return;
+    try {
+      resolveProgress.value = 'Checking for conflicts...';
+      const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
+      const existingNamesByPath = new Map(await Promise.all(targetPaths.map(async targetPath => [targetPath, await fetchExistingFileNames(targetPath)])));
+      const itemsToUpload = [];
+      for (const file of filesToUpload) {
+        const targetPath = getTargetPath(file);
+        const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
+        if (resolution === 'abort') {
+          return;
+        }
+        if (resolution === 'upload' || resolution === 'replace') {
+          itemsToUpload.push({
+            file,
+            parentPath: targetPath,
+            overwrite: resolution === 'replace'
+          });
+        }
       }
-      if (resolution === 'upload' || resolution === 'replace') {
-        itemsToUpload.push({
-          file,
-          parentPath: targetPath,
-          overwrite: resolution === 'replace'
-        });
-      }
+      await enqueueUpload(itemsToUpload);
+    } finally {
+      isResolvingConflicts.value = false;
+      resolveProgress.value = '';
+      replaceAllMode.value = false;
+      skipAllMode.value = false;
     }
-    await enqueueUpload(itemsToUpload);
-    replaceAllMode.value = false;
-    skipAllMode.value = false;
   }
   async function processEntry(entry, currentPath, filesToUpload, directoriesToCreate) {
     if (entry.isFile) {
@@ -201,7 +204,8 @@ export function useDragAndDropUpload({
     event.stopPropagation();
     isDraggingOver.value = false;
     dragCounter.value = 0;
-    if (isUploading.value) {
+    if (isResolvingConflicts.value) {
+      uploadError.value = 'Another drop is still being processed. Wait for it to finish before dropping more.';
       return;
     }
     const hasItems = !!event.dataTransfer?.items && event.dataTransfer.items.length > 0;
@@ -211,9 +215,9 @@ export function useDragAndDropUpload({
     }
     const fallbackFiles = hasFiles ? Array.from(event.dataTransfer.files) : [];
     const topLevelNames = hasItems ? Array.from(event.dataTransfer.items).map(item => item.kind === 'file' ? item.webkitGetAsEntry()?.name : undefined).filter(name => !!name) : fallbackFiles.map(file => file.name);
-    isUploading.value = true;
+    isResolvingConflicts.value = true;
     uploadError.value = '';
-    uploadProgress.value = topLevelNames.length === 1 ? `Uploading ${topLevelNames[0]}...` : topLevelNames.length > 1 ? `Uploading ${topLevelNames.length} items...` : '';
+    resolveProgress.value = topLevelNames.length === 1 ? `Uploading ${topLevelNames[0]}...` : topLevelNames.length > 1 ? `Uploading ${topLevelNames.length} items...` : '';
     const pathAtDropStart = path.value;
     try {
       const {
@@ -231,11 +235,13 @@ export function useDragAndDropUpload({
     } catch (error) {
       console.error('Failed to process dropped files:', error);
       uploadError.value = error instanceof Error ? error.message : String(error);
-      isUploading.value = false;
-      uploadProgress.value = '';
+      isResolvingConflicts.value = false;
+      resolveProgress.value = '';
     }
   }
   return {
+    isResolvingConflicts,
+    resolveProgress,
     isDraggingOver,
     fileConflictModal,
     uploadFiles,

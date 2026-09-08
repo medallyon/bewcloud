@@ -61,6 +61,8 @@ export default function MainFiles({
     checkExistingFiles: false
   });
   const {
+    isResolvingConflicts,
+    resolveProgress,
     isDraggingOver,
     fileConflictModal,
     uploadFiles,
@@ -70,8 +72,6 @@ export default function MainFiles({
     handleDrop
   } = useDragAndDropUpload({
     path,
-    isUploading,
-    uploadProgress,
     uploadError,
     enqueueUpload,
     onBeforeUpload: () => {
@@ -677,7 +677,7 @@ export default function MainFiles({
   }, h("img", {
     src: "/public/images/add.svg",
     alt: "Add new file or directory",
-    class: `white ${isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''}`,
+    class: `white ${isAdding.value || isUploading.value || isCreatingDirectories.value || isResolvingConflicts.value ? 'animate-spin' : ''}`,
     width: 20,
     height: 20
   }))), h("div", {
@@ -739,7 +739,12 @@ export default function MainFiles({
     class: "white mr-2",
     width: 18,
     height: 18
-  }), "Creating directory ", currentDirectoryName.value, "...") : null, isUploading.value ? h(Fragment, null, h("img", {
+  }), "Creating directory ", currentDirectoryName.value, "...") : null, isResolvingConflicts.value ? h(Fragment, null, h("img", {
+    src: "/public/images/loading.svg",
+    class: "white mr-2",
+    width: 18,
+    height: 18
+  }), resolveProgress.value || 'Preparing upload...') : null, isUploading.value ? h(Fragment, null, h("img", {
     src: "/public/images/loading.svg",
     class: "white mr-2",
     width: 18,
@@ -749,7 +754,7 @@ export default function MainFiles({
     class: "white mr-2",
     width: 18,
     height: 18
-  }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
+  }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isResolvingConflicts.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
     class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
   }, "Upload failed \u2014 ", uploadError.value) : null), !fileShareId ? h("section", {
     class: "flex flex-row items-center justify-start my-12"

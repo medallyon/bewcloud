@@ -41,6 +41,8 @@ export default function MainPhotos({
     checkExistingFiles: false
   });
   const {
+    isResolvingConflicts,
+    resolveProgress,
     isDraggingOver,
     fileConflictModal,
     uploadFiles,
@@ -50,8 +52,6 @@ export default function MainPhotos({
     handleDrop
   } = useDragAndDropUpload({
     path,
-    isUploading,
-    uploadProgress,
     uploadError,
     enqueueUpload,
     onBeforeUpload: () => {
@@ -160,7 +160,7 @@ export default function MainPhotos({
   }, h("img", {
     src: "/public/images/add.svg",
     alt: "Add new file or directory",
-    class: `white ${isAdding.value || isUploading.value ? 'animate-spin' : ''}`,
+    class: `white ${isAdding.value || isUploading.value || isResolvingConflicts.value ? 'animate-spin' : ''}`,
     width: 20,
     height: 20
   }))), h("div", {
@@ -194,12 +194,17 @@ export default function MainPhotos({
     class: "white mr-2",
     width: 18,
     height: 18
-  }), "Creating...") : null, isUploading.value ? h(Fragment, null, h("img", {
+  }), "Creating...") : null, isResolvingConflicts.value ? h(Fragment, null, h("img", {
     src: "/public/images/loading.svg",
     class: "white mr-2",
     width: 18,
     height: 18
-  }), uploadProgress.value || 'Uploading...') : null, !isAdding.value && !isUploading.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
+  }), resolveProgress.value || 'Preparing upload...') : null, isUploading.value ? h(Fragment, null, h("img", {
+    src: "/public/images/loading.svg",
+    class: "white mr-2",
+    width: 18,
+    height: 18
+  }), uploadProgress.value || 'Uploading...') : null, !isAdding.value && !isResolvingConflicts.value && !isUploading.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
     class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
   }, "Upload failed \u2014 ", uploadError.value) : null), h(CreateDirectoryModal, {
     isOpen: isNewDirectoryModalOpen.value,

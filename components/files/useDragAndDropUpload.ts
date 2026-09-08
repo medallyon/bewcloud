@@ -18,10 +18,7 @@ type ConflictResolution = 'upload' | 'replace' | 'skip' | 'abort';
 
 interface UseDragAndDropUploadOptions {
   path: Signal<string>;
-  // Caller's own upload-in-progress signal (from useUploadQueue), flipped on immediately on drop so "Uploading..." shows during the tree-walk/conflict-check phase, before enqueueUpload's own progress messages take over.
-  isUploading: Signal<boolean>;
-  // Caller's own progress/error signals (from useUploadQueue), reused here so a tree-walk failure (before enqueueUpload is ever reached) still shows up, and the dropped folder's name shows during the walk.
-  uploadProgress: Signal<string>;
+  // Caller's own error signal (from useUploadQueue), reused here so a tree-walk failure (before enqueueUpload is ever reached) still shows up in the same place upload failures do.
   uploadError: Signal<string>;
   enqueueUpload: (items: { file: File; parentPath: string; overwrite: boolean }[]) => Promise<void>;
   // Called once, right before conflict resolution starts, e.g. to close an open dropdown.
@@ -59,8 +56,6 @@ export function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Prom
 export function useDragAndDropUpload(
   {
     path,
-    isUploading,
-    uploadProgress,
     uploadError,
     enqueueUpload,
     onBeforeUpload,
@@ -69,6 +64,9 @@ export function useDragAndDropUpload(
     sessionTag = '',
   }: UseDragAndDropUploadOptions,
 ) {
+  // The tree walk and the conflict prompts happen before anything is handed to the upload queue, so this phase needs its own signals. useUploadQueue's isUploading/uploadProgress can't stand in: the service worker overwrites both on every broadcast (including the QUERY_STATE any other tab fires on mount), which would wipe the status mid-prompt and let a second drop land on top of the first.
+  const isResolvingConflicts = useSignal<boolean>(false);
+  const resolveProgress = useSignal<string>('');
   const isDraggingOver = useSignal<boolean>(false);
   const dragCounter = useSignal<number>(0);
   const fileConflictModal = useSignal<FileConflictState | null>(null);
@@ -161,49 +159,51 @@ export function useDragAndDropUpload(
         // Something was dropped, but the filter (e.g. Photos wanting only images/videos) rejected all of it.
         uploadError.value = 'No supported files were found in the dropped items.';
       }
-      isUploading.value = false;
+      isResolvingConflicts.value = false;
+      resolveProgress.value = '';
       return;
     }
 
-    // Immediate feedback for the conflict-check phase below (a network round-trip per target path), before enqueueUpload's own progress messages take over.
-    isUploading.value = true;
+    isResolvingConflicts.value = true;
     onBeforeUpload?.();
     replaceAllMode.value = false; // Reset replace/skip all mode for new upload session
     skipAllMode.value = false;
 
-    uploadProgress.value = 'Checking for conflicts...';
+    try {
+      // Immediate feedback for the conflict-check below, which is a network round-trip per target path.
+      resolveProgress.value = 'Checking for conflicts...';
 
-    // Check every target path a dropped file will land in (not just the currently-viewed directory), so conflicts in dragged subdirectories are caught too.
-    const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
-    const existingNamesByPath = new Map(
-      await Promise.all(
-        targetPaths.map(async (targetPath) => [targetPath, await fetchExistingFileNames(targetPath)] as const),
-      ),
-    );
+      // Check every target path a dropped file will land in (not just the currently-viewed directory), so conflicts in dragged subdirectories are caught too.
+      const targetPaths = [...new Set(filesToUpload.map(getTargetPath))];
+      const existingNamesByPath = new Map(
+        await Promise.all(
+          targetPaths.map(async (targetPath) => [targetPath, await fetchExistingFileNames(targetPath)] as const),
+        ),
+      );
 
-    const itemsToUpload: { file: File; parentPath: string; overwrite: boolean }[] = [];
+      const itemsToUpload: { file: File; parentPath: string; overwrite: boolean }[] = [];
 
-    for (const file of filesToUpload) {
-      const targetPath = getTargetPath(file);
-      const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
+      for (const file of filesToUpload) {
+        const targetPath = getTargetPath(file);
+        const resolution = await resolveFileConflict(file, targetPath, existingNamesByPath);
 
-      if (resolution === 'abort') {
-        // Discards everything resolved so far in this batch too, not just the remaining files. enqueueUpload is never reached, so clear the indicator ourselves.
-        replaceAllMode.value = false;
-        skipAllMode.value = false;
-        isUploading.value = false;
-        return;
+        if (resolution === 'abort') {
+          // Discards everything resolved so far in this batch too, not just the remaining files.
+          return;
+        }
+
+        if (resolution === 'upload' || resolution === 'replace') {
+          itemsToUpload.push({ file, parentPath: targetPath, overwrite: resolution === 'replace' });
+        }
       }
 
-      if (resolution === 'upload' || resolution === 'replace') {
-        itemsToUpload.push({ file, parentPath: targetPath, overwrite: resolution === 'replace' });
-      }
+      await enqueueUpload(itemsToUpload);
+    } finally {
+      isResolvingConflicts.value = false;
+      resolveProgress.value = '';
+      replaceAllMode.value = false;
+      skipAllMode.value = false;
     }
-
-    await enqueueUpload(itemsToUpload);
-
-    replaceAllMode.value = false;
-    skipAllMode.value = false;
   }
 
   // Process a single dropped file system entry (file or directory), tagging files with a webkitRelativePath so directory structure survives the upload, and collecting empty directory paths for the caller to create.
@@ -299,8 +299,9 @@ export function useDragAndDropUpload(
     isDraggingOver.value = false;
     dragCounter.value = 0;
 
-    if (isUploading.value) {
-      // A batch is already in flight - don't let a second overlapping drop land on top of it.
+    if (isResolvingConflicts.value) {
+      // A drop is still being resolved - a second one landing on top of it would overwrite the open conflict prompt and leave the first batch waiting on an answer that can never arrive.
+      uploadError.value = 'Another drop is still being processed. Wait for it to finish before dropping more.';
       return;
     }
 
@@ -321,9 +322,9 @@ export function useDragAndDropUpload(
         .filter((name): name is string => !!name)
       : fallbackFiles.map((file) => file.name);
 
-    isUploading.value = true;
+    isResolvingConflicts.value = true;
     uploadError.value = '';
-    uploadProgress.value = topLevelNames.length === 1
+    resolveProgress.value = topLevelNames.length === 1
       ? `Uploading ${topLevelNames[0]}...`
       : topLevelNames.length > 1
       ? `Uploading ${topLevelNames.length} items...`
@@ -349,12 +350,14 @@ export function useDragAndDropUpload(
     } catch (error) {
       console.error('Failed to process dropped files:', error);
       uploadError.value = error instanceof Error ? error.message : String(error);
-      isUploading.value = false;
-      uploadProgress.value = '';
+      isResolvingConflicts.value = false;
+      resolveProgress.value = '';
     }
   }
 
   return {
+    isResolvingConflicts,
+    resolveProgress,
     isDraggingOver,
     fileConflictModal,
     uploadFiles,

@@ -113,6 +113,8 @@ export default function MainFiles(
   });
 
   const {
+    isResolvingConflicts,
+    resolveProgress,
     isDraggingOver,
     fileConflictModal,
     uploadFiles,
@@ -122,8 +124,6 @@ export default function MainFiles(
     handleDrop,
   } = useDragAndDropUpload({
     path,
-    isUploading,
-    uploadProgress,
     uploadError,
     enqueueUpload,
     onBeforeUpload: () => {
@@ -904,7 +904,10 @@ export default function MainFiles(
                       src='/public/images/add.svg'
                       alt='Add new file or directory'
                       class={`white ${
-                        isAdding.value || isUploading.value || isCreatingDirectories.value ? 'animate-spin' : ''
+                        isAdding.value || isUploading.value || isCreatingDirectories.value ||
+                          isResolvingConflicts.value
+                          ? 'animate-spin'
+                          : ''
                       }`}
                       width={20}
                       height={20}
@@ -999,6 +1002,14 @@ export default function MainFiles(
               </>
             )
             : null}
+          {isResolvingConflicts.value
+            ? (
+              <>
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
+                {resolveProgress.value || 'Preparing upload...'}
+              </>
+            )
+            : null}
           {isUploading.value
             ? (
               <>
@@ -1014,8 +1025,8 @@ export default function MainFiles(
               </>
             )
             : null}
-          {!isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isUploading.value &&
-              !isUpdating.value
+          {!isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isResolvingConflicts.value &&
+              !isUploading.value && !isUpdating.value
             ? <>&nbsp;</>
             : null}
         </span>

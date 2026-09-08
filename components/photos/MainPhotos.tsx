@@ -53,6 +53,8 @@ export default function MainPhotos(
   });
 
   const {
+    isResolvingConflicts,
+    resolveProgress,
     isDraggingOver,
     fileConflictModal,
     uploadFiles,
@@ -62,8 +64,6 @@ export default function MainPhotos(
     handleDrop,
   } = useDragAndDropUpload({
     path,
-    isUploading,
-    uploadProgress,
     uploadError,
     enqueueUpload,
     onBeforeUpload: () => {
@@ -194,7 +194,9 @@ export default function MainPhotos(
                 <img
                   src='/public/images/add.svg'
                   alt='Add new file or directory'
-                  class={`white ${isAdding.value || isUploading.value ? 'animate-spin' : ''}`}
+                  class={`white ${
+                    isAdding.value || isUploading.value || isResolvingConflicts.value ? 'animate-spin' : ''
+                  }`}
                   width={20}
                   height={20}
                 />
@@ -252,6 +254,14 @@ export default function MainPhotos(
               </>
             )
             : null}
+          {isResolvingConflicts.value
+            ? (
+              <>
+                <img src='/public/images/loading.svg' class='white mr-2' width={18} height={18} />
+                {resolveProgress.value || 'Preparing upload...'}
+              </>
+            )
+            : null}
           {isUploading.value
             ? (
               <>
@@ -260,7 +270,7 @@ export default function MainPhotos(
               </>
             )
             : null}
-          {!isAdding.value && !isUploading.value ? <>&nbsp;</> : null}
+          {!isAdding.value && !isResolvingConflicts.value && !isUploading.value ? <>&nbsp;</> : null}
         </span>
 
         {uploadError.value
