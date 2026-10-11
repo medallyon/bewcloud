@@ -20,6 +20,7 @@ interface Data {
   currentPath: string;
   baseUrl: string;
   fileShareId?: string;
+  areDirectoryDownloadsAllowed: boolean;
 }
 
 async function get({ request, match, session, isRunningLocally }: RequestHandlerParams) {
@@ -34,6 +35,8 @@ async function get({ request, match, session, isRunningLocally }: RequestHandler
   if (!isPublicFileSharingAllowed) {
     throw new Error('NotFound');
   }
+
+  const areDirectoryDownloadsAllowed = await AppConfig.areDirectoryDownloadsAllowedForPublicShares();
 
   const baseUrl = (await AppConfig.getConfig()).auth.baseUrl;
 
@@ -142,6 +145,7 @@ async function get({ request, match, session, isRunningLocally }: RequestHandler
     fileShareId,
     initialSortBy,
     initialSortOrder,
+    areDirectoryDownloadsAllowed,
   });
 
   return basicLayoutResponse(htmlContent, {
@@ -155,7 +159,16 @@ async function get({ request, match, session, isRunningLocally }: RequestHandler
 }
 
 function defaultHtmlContent(
-  { shareDirectories, shareFiles, currentPath, baseUrl, fileShareId, initialSortBy, initialSortOrder }: {
+  {
+    shareDirectories,
+    shareFiles,
+    currentPath,
+    baseUrl,
+    fileShareId,
+    initialSortBy,
+    initialSortOrder,
+    areDirectoryDownloadsAllowed,
+  }: {
     shareDirectories: Directory[];
     shareFiles: DirectoryFile[];
     currentPath: string;
@@ -163,6 +176,7 @@ function defaultHtmlContent(
     fileShareId: string;
     initialSortBy: SortColumn;
     initialSortOrder: SortOrder;
+    areDirectoryDownloadsAllowed: boolean;
   },
 ) {
   return html`
@@ -190,7 +204,7 @@ function defaultHtmlContent(
         initialPath: ${JSON.stringify(currentPath)},
         baseUrl: ${JSON.stringify(baseUrl)},
         isFileSharingAllowed: true,
-        areDirectoryDownloadsAllowed: false,
+        areDirectoryDownloadsAllowed: ${JSON.stringify(areDirectoryDownloadsAllowed)},
         fileShareId: ${JSON.stringify(fileShareId)},
         initialSortBy: ${JSON.stringify(initialSortBy)},
         initialSortOrder: ${JSON.stringify(initialSortOrder)},

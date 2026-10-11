@@ -370,7 +370,7 @@ export default function MainFiles({
     moveDirectoryOrFileModal.value = null;
   }
   function onClickDownloadDirectory(item) {
-    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(item.parentPath)}&name=${encodeURIComponent(item.name)}`;
+    const downloadUrl = fileShareId ? `/file-share/${fileShareId}/download-directory?path=${encodeURIComponent(item.parentPath)}&name=${encodeURIComponent(item.name)}` : `/api/files/download-directory?parentPath=${encodeURIComponent(item.parentPath)}&name=${encodeURIComponent(item.name)}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.download = `${item.name}.zip`;
@@ -718,7 +718,7 @@ export default function MainFiles({
     onClickRename: fileShareId ? undefined : onClickOpenRename,
     onClickMove: fileShareId ? undefined : onClickOpenMove,
     onClickDelete: fileShareId ? undefined : onClickDelete,
-    onClickDownload: !fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
+    onClickDownload: areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
     onClickCreateShare: !fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined,
     onClickManageShare: !fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined
   }) : h(FilesList, {
@@ -736,7 +736,7 @@ export default function MainFiles({
     onClickRename: fileShareId ? undefined : onClickOpenRename,
     onClickMove: fileShareId ? undefined : onClickOpenMove,
     onClickDelete: fileShareId ? undefined : onClickDelete,
-    onClickDownload: !fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
+    onClickDownload: areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
     onClickCreateShare: !fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined,
     onClickManageShare: !fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined
   }), h("span", {
