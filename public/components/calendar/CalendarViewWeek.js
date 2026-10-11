@@ -56,7 +56,7 @@ export default function CalendarViewWeek({
     const isLastDay = dayIndex === 6;
     const isToday = new Date(day.date).toISOString().substring(0, 10) === today;
     return h(Fragment, null, h("section", {
-      class: `flex justify-center ${isToday ? 'bg-[#51A4FB]' : 'bg-gray-900'} py-2 ${isFirstDay ? 'rounded-tl-md' : ''} ${isLastDay ? 'rounded-tr-md' : ''} text-center text-xs font-semibold text-white`
+      class: `flex justify-center ${isToday ? 'bg-accent' : 'bg-gray-900'} py-2 ${isFirstDay ? 'rounded-tl-md' : ''} ${isLastDay ? 'rounded-tr-md' : ''} text-center text-xs font-semibold text-white`
     }, h("span", null, weekDayFormat.format(day.date))), h("section", {
       class: `relative bg-slate-700 min-h-8 px-3 py-2 text-slate-100`
     }, h("time", {

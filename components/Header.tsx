@@ -1,5 +1,5 @@
 import { OptionalApp, User } from '/lib/types.ts';
-import { capitalizeWord } from '/public/ts/utils/misc.ts';
+import { getMenuItems } from '/public/ts/utils/navigation.ts';
 
 interface Data {
   route: string;
@@ -7,27 +7,12 @@ interface Data {
   enabledApps: OptionalApp[];
 }
 
-interface MenuItem {
-  url: string;
-  label: string;
-}
-
 export default function Header({ route, user, enabledApps }: Data) {
-  const activeClass = 'bg-slate-800 text-white rounded-md px-3 py-2 text-sm font-medium';
-  const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-md px-3 py-2 text-sm font-medium';
-
-  const mobileActiveClass = 'bg-slate-800 text-white block rounded-md px-3 py-2 text-base font-medium';
-  const mobileDefaultClass =
-    'text-slate-300 hover:bg-slate-700 hover:text-white block rounded-md px-3 py-2 text-base font-medium';
+  const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg font-medium';
 
   const iconWidthAndHeightInPixels = 20;
 
-  const potentialMenuItems: (MenuItem | null)[] = enabledApps.map((app) => ({
-    url: `/${app}`,
-    label: capitalizeWord(app),
-  }));
-
-  const menuItems = potentialMenuItems.filter(Boolean) as MenuItem[];
+  const menuItems = getMenuItems(enabledApps);
 
   if (user && !route.startsWith('/file-share')) {
     const activeMenu = menuItems.find((menu) => route.startsWith(menu.url));
@@ -55,92 +40,50 @@ export default function Header({ route, user, enabledApps }: Data) {
     }
 
     return (
-      <>
-        <nav class='bg-slate-950'>
-          <div class='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
-            <div class='flex h-16 items-center justify-between'>
-              <div class='flex items-center'>
-                <div class='shrink-0'>
-                  <a href='/'>
-                    <img
-                      class='h-12 w-12 drop-shadow-md'
-                      src='/public/images/logomark.svg'
-                      alt='a stylized blue cloud'
-                    />
-                  </a>
-                </div>
-                <div class='hidden md:block'>
-                  <div class='ml-10 flex items-center space-x-4'>
-                    {menuItems.map((menu) => (
-                      <a href={menu.url} class={route.startsWith(menu.url) ? activeClass : defaultClass}>
-                        <img
-                          src={`/public/images${menu.url}${'.svg'}`}
-                          alt={menu.label}
-                          title={menu.label}
-                          width={iconWidthAndHeightInPixels}
-                          height={iconWidthAndHeightInPixels}
-                          class='white'
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
+      <nav class='chrome pt-[env(safe-area-inset-top)]'>
+        <div class='flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8'>
+          <a href='/' class='shrink-0 md:hidden'>
+            <img
+              class='h-10 w-10 drop-shadow-md'
+              src='/public/images/logomark.svg'
+              alt='a stylized blue cloud'
+            />
+          </a>
 
-              <div class='ml-4 flex items-center md:ml-6'>
-                <div class='ml-10 flex items-center space-x-4'>
-                  <span class='mx-2 text-white text-sm'>{user.email}</span>
-                  <a
-                    href='/settings'
-                    class={route.startsWith('/settings') ? activeClass : defaultClass}
-                  >
-                    <img
-                      src='/public/images/settings.svg'
-                      alt='Settings'
-                      title='Settings'
-                      width={iconWidthAndHeightInPixels}
-                      height={iconWidthAndHeightInPixels}
-                      class='white'
-                    />
-                  </a>
-                  <a
-                    href='/logout'
-                    id='logout-link'
-                    class={defaultClass}
-                  >
-                    <img
-                      src='/public/images/logout.svg'
-                      alt='Logout'
-                      title='Logout'
-                      width={iconWidthAndHeightInPixels}
-                      height={iconWidthAndHeightInPixels}
-                      class='white'
-                    />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
+          <h1 class='flex-1 truncate text-xl font-bold tracking-tight text-white sm:text-2xl'>{pageLabel}</h1>
 
-          <div class='md:hidden' id='mobile-menu'>
-            <div class='space-y-1 px-2 pb-3 pt-2 sm:px-3'>
-              {menuItems.map((menu) => (
-                <a href={menu.url} class={route.startsWith(menu.url) ? mobileActiveClass : mobileDefaultClass}>
-                  {menu.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        </nav>
+          <a
+            href='/settings'
+            class={`${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center ${
+              route.startsWith('/settings') ? 'bg-slate-700 text-white' : ''
+            }`}
+          >
+            <img
+              src='/public/images/settings.svg'
+              alt='A cog wheel'
+              title='Settings'
+              width={iconWidthAndHeightInPixels}
+              height={iconWidthAndHeightInPixels}
+              class='white'
+            />
+          </a>
 
-        <header class='bg-gray-900 shadow-md'>
-          <div class='mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8'>
-            <h1 class='text-3xl font-bold tracking-tight text-white'>
-              {pageLabel}
-            </h1>
-          </div>
-        </header>
-      </>
+          {/* The sidebar carries logout from md up, so this only fills in for the bottom tab bar, which has no room for it */}
+          <a
+            href='/logout'
+            class={`${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center md:hidden`}
+          >
+            <img
+              src='/public/images/logout.svg'
+              alt='An arrow leaving a door'
+              title='Logout'
+              width={iconWidthAndHeightInPixels}
+              height={iconWidthAndHeightInPixels}
+              class='white'
+            />
+          </a>
+        </div>
+      </nav>
     );
   }
 

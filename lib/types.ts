@@ -1,3 +1,6 @@
+import type { FileView } from '/public/ts/utils/files.ts';
+import type { ThemeId } from '/public/ts/utils/theme.ts';
+
 export interface User {
   id: string;
   email: string;
@@ -23,6 +26,10 @@ export interface User {
       sort_by: string;
       sort_order: string;
     };
+    file_view?: FileView;
+    theme?: ThemeId;
+    // Hex colours keyed by THEME_OVERRIDE_FIELDS, painted over whichever theme is picked
+    theme_overrides?: Record<string, string>;
   };
   created_at: Date;
 }

@@ -8,6 +8,7 @@ import {
   getPathsFromBase,
 } from './existingFileNames.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+import { INTERNAL_DRAG_TYPE } from './useInternalDragAndDrop.ts';
 
 interface FileConflictState {
   isOpen: boolean;
@@ -316,7 +317,16 @@ export function useDragAndDropUpload(
     return { files: filesToUpload, emptyDirectories: directoriesToCreate };
   }
 
+  // Moving existing items around is useInternalDragAndDrop's job, not an upload
+  function isInternalItemDrag(event: DragEvent) {
+    return Boolean(event.dataTransfer?.types.includes(INTERNAL_DRAG_TYPE));
+  }
+
   function handleDragEnter(event: DragEvent) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -327,6 +337,10 @@ export function useDragAndDropUpload(
   }
 
   function handleDragLeave(event: DragEvent) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -337,6 +351,10 @@ export function useDragAndDropUpload(
   }
 
   function handleDragOver(event: DragEvent) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -346,6 +364,10 @@ export function useDragAndDropUpload(
   }
 
   async function handleDrop(event: DragEvent) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 

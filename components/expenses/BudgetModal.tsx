@@ -102,7 +102,7 @@ export default function BudgetModal(
           {budget
             ? (
               <button
-                class='px-5 py-2 bg-red-600 text-white cursor-pointer rounded-md mr-2 opacity-30 hover:opacity-100'
+                class='px-5 py-2 bg-red-600 text-on-color cursor-pointer rounded-md mr-2 opacity-30 hover:opacity-100'
                 onClick={() => onClickDelete()}
                 type='button'
               >

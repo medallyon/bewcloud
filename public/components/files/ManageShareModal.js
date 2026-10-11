@@ -79,7 +79,7 @@ export default function ManageShareModal({
     },
     type: "button"
   }, "Update"), h("button", {
-    class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-white cursor-pointer rounded-md",
+    class: "px-5 py-2 bg-red-600 hover:bg-red-500 text-on-color cursor-pointer rounded-md",
     onClick: () => onClickDelete(fileShareId),
     type: "button"
   }, "Delete"), h("button", {

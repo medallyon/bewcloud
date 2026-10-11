@@ -2,6 +2,7 @@ import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { fetchExistingNamesByPath, findDirectoryTakenByFile, getPathsFromBase } from "./existingFileNames.js";
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+import { INTERNAL_DRAG_TYPE } from "./useInternalDragAndDrop.js";
 export function readAllDirectoryEntries(reader) {
   const allEntries = [];
   return new Promise((resolve, reject) => {
@@ -211,7 +212,13 @@ export function useDragAndDropUpload({
       emptyDirectories: directoriesToCreate
     };
   }
+  function isInternalItemDrag(event) {
+    return Boolean(event.dataTransfer?.types.includes(INTERNAL_DRAG_TYPE));
+  }
   function handleDragEnter(event) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     dragCounter.value++;
@@ -220,6 +227,9 @@ export function useDragAndDropUpload({
     }
   }
   function handleDragLeave(event) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     dragCounter.value--;
@@ -228,6 +238,9 @@ export function useDragAndDropUpload({
     }
   }
   function handleDragOver(event) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) {
@@ -235,6 +248,9 @@ export function useDragAndDropUpload({
     }
   }
   async function handleDrop(event) {
+    if (isInternalItemDrag(event)) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     isDraggingOver.value = false;

@@ -1,19 +1,12 @@
-import { capitalizeWord } from '/public/ts/utils/misc.ts';
+import { getMenuItems } from '/public/ts/utils/navigation.ts';
 export default function Header({
   route,
   user,
   enabledApps
 }) {
-  const activeClass = 'bg-slate-800 text-white rounded-md px-3 py-2 text-sm font-medium';
-  const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-md px-3 py-2 text-sm font-medium';
-  const mobileActiveClass = 'bg-slate-800 text-white block rounded-md px-3 py-2 text-base font-medium';
-  const mobileDefaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white block rounded-md px-3 py-2 text-base font-medium';
+  const defaultClass = 'text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg font-medium';
   const iconWidthAndHeightInPixels = 20;
-  const potentialMenuItems = enabledApps.map(app => ({
-    url: `/${app}`,
-    label: capitalizeWord(app)
-  }));
-  const menuItems = potentialMenuItems.filter(Boolean);
+  const menuItems = getMenuItems(enabledApps);
   if (user && !route.startsWith('/file-share')) {
     const activeMenu = menuItems.find(menu => route.startsWith(menu.url));
     let pageLabel = activeMenu?.label || '404 - Page not found';
@@ -32,78 +25,40 @@ export default function Header({
     if (route.startsWith('/calendar')) {
       pageLabel = 'Calendar';
     }
-    return h(Fragment, null, h("nav", {
-      class: "bg-slate-950"
+    return h("nav", {
+      class: "chrome pt-[env(safe-area-inset-top)]"
     }, h("div", {
-      class: "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
-    }, h("div", {
-      class: "flex h-16 items-center justify-between"
-    }, h("div", {
-      class: "flex items-center"
-    }, h("div", {
-      class: "shrink-0"
+      class: "flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8"
     }, h("a", {
-      href: "/"
+      href: "/",
+      class: "shrink-0 md:hidden"
     }, h("img", {
-      class: "h-12 w-12 drop-shadow-md",
+      class: "h-10 w-10 drop-shadow-md",
       src: "/public/images/logomark.svg",
       alt: "a stylized blue cloud"
-    }))), h("div", {
-      class: "hidden md:block"
-    }, h("div", {
-      class: "ml-10 flex items-center space-x-4"
-    }, menuItems.map(menu => h("a", {
-      href: menu.url,
-      class: route.startsWith(menu.url) ? activeClass : defaultClass
-    }, h("img", {
-      src: `/public/images${menu.url}${'.svg'}`,
-      alt: menu.label,
-      title: menu.label,
-      width: iconWidthAndHeightInPixels,
-      height: iconWidthAndHeightInPixels,
-      class: "white"
-    })))))), h("div", {
-      class: "ml-4 flex items-center md:ml-6"
-    }, h("div", {
-      class: "ml-10 flex items-center space-x-4"
-    }, h("span", {
-      class: "mx-2 text-white text-sm"
-    }, user.email), h("a", {
+    })), h("h1", {
+      class: "flex-1 truncate text-xl font-bold tracking-tight text-white sm:text-2xl"
+    }, pageLabel), h("a", {
       href: "/settings",
-      class: route.startsWith('/settings') ? activeClass : defaultClass
+      class: `${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center ${route.startsWith('/settings') ? 'bg-slate-700 text-white' : ''}`
     }, h("img", {
       src: "/public/images/settings.svg",
-      alt: "Settings",
+      alt: "A cog wheel",
       title: "Settings",
       width: iconWidthAndHeightInPixels,
       height: iconWidthAndHeightInPixels,
       class: "white"
     })), h("a", {
       href: "/logout",
-      id: "logout-link",
-      class: defaultClass
+      class: `${defaultClass} flex min-h-11 min-w-11 shrink-0 items-center justify-center md:hidden`
     }, h("img", {
       src: "/public/images/logout.svg",
-      alt: "Logout",
+      alt: "An arrow leaving a door",
       title: "Logout",
       width: iconWidthAndHeightInPixels,
       height: iconWidthAndHeightInPixels,
       class: "white"
-    })))))), h("div", {
-      class: "md:hidden",
-      id: "mobile-menu"
-    }, h("div", {
-      class: "space-y-1 px-2 pb-3 pt-2 sm:px-3"
-    }, menuItems.map(menu => h("a", {
-      href: menu.url,
-      class: route.startsWith(menu.url) ? mobileActiveClass : mobileDefaultClass
-    }, menu.label))))), h("header", {
-      class: "bg-gray-900 shadow-md"
-    }, h("div", {
-      class: "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
-    }, h("h1", {
-      class: "text-3xl font-bold tracking-tight text-white"
-    }, pageLabel))));
+    }))));
   }
   return h("header", {
     class: "px-4 pt-8 pb-2 max-w-3xl mx-auto flex flex-col items-center justify-center"

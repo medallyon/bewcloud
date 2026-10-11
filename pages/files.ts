@@ -6,7 +6,16 @@ import { AppConfig } from '/lib/config.ts';
 import { html } from '/public/ts/utils/misc.ts';
 import { basicLayoutResponse } from '/lib/utils/layout.tsx';
 import Loading from '/components/Loading.ts';
-import { SortColumn, sortDirectories, sortFiles, SortOrder } from '/public/ts/utils/files.ts';
+import {
+  FileView,
+  SortColumn,
+  sortDirectories,
+  sortFiles,
+  SortOrder,
+  VALID_FILE_VIEWS,
+  VALID_SORT_COLUMNS,
+  VALID_SORT_ORDERS,
+} from '/public/ts/utils/files.ts';
 import { generateUploadSessionTag } from '/lib/auth.ts';
 
 async function get({ request, user, match, session, isRunningLocally }: RequestHandlerParams) {
@@ -30,26 +39,28 @@ async function get({ request, user, match, session, isRunningLocally }: RequestH
     currentPath = `${currentPath}/`;
   }
 
-  const validSortColumns = ['name', 'updated_at', 'size_in_bytes'];
-  const validSortOrders = ['asc', 'desc'];
-
   const savedSorting = user!.extra.file_sorting;
   const urlSortBy = searchParams.get('sortBy');
   const urlSortOrder = searchParams.get('sortOrder');
 
   const initialSortBy =
-    ((urlSortBy && validSortColumns.includes(urlSortBy))
+    ((urlSortBy && VALID_SORT_COLUMNS.includes(urlSortBy as SortColumn))
       ? urlSortBy
-      : (savedSorting?.sort_by && validSortColumns.includes(savedSorting.sort_by))
+      : (savedSorting?.sort_by && VALID_SORT_COLUMNS.includes(savedSorting.sort_by as SortColumn))
       ? savedSorting.sort_by
       : 'name') as SortColumn;
 
   const initialSortOrder =
-    ((urlSortOrder && validSortOrders.includes(urlSortOrder))
+    ((urlSortOrder && VALID_SORT_ORDERS.includes(urlSortOrder as SortOrder))
       ? urlSortOrder
-      : (savedSorting?.sort_order && validSortOrders.includes(savedSorting.sort_order))
+      : (savedSorting?.sort_order && VALID_SORT_ORDERS.includes(savedSorting.sort_order as SortOrder))
       ? savedSorting.sort_order
       : 'asc') as SortOrder;
+
+  const urlView = searchParams.get('view');
+  const initialView: FileView = VALID_FILE_VIEWS.includes(urlView as FileView)
+    ? urlView as FileView
+    : user!.extra.file_view || 'list';
 
   let userDirectories = await DirectoryModel.list(user!.id, currentPath);
 
@@ -71,6 +82,7 @@ async function get({ request, user, match, session, isRunningLocally }: RequestH
     areDirectoryDownloadsAllowed,
     initialSortBy,
     initialSortOrder,
+    initialView,
     uploadSessionTag: await generateUploadSessionTag(session?.tokenData?.session_id),
   });
 
@@ -95,6 +107,7 @@ function defaultHtmlContent(
     areDirectoryDownloadsAllowed,
     initialSortBy,
     initialSortOrder,
+    initialView,
     uploadSessionTag,
   }: {
     userDirectories: Directory[];
@@ -105,6 +118,7 @@ function defaultHtmlContent(
     areDirectoryDownloadsAllowed: boolean;
     initialSortBy: string;
     initialSortOrder: string;
+    initialView: FileView;
     uploadSessionTag: string;
   },
 ) {
@@ -137,6 +151,7 @@ function defaultHtmlContent(
         areDirectoryDownloadsAllowed: ${JSON.stringify(areDirectoryDownloadsAllowed)},
         initialSortBy: ${JSON.stringify(initialSortBy)},
         initialSortOrder: ${JSON.stringify(initialSortOrder)},
+        initialView: ${JSON.stringify(initialView)},
         uploadSessionTag: ${JSON.stringify(uploadSessionTag)},
       });
 

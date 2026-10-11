@@ -1,11 +1,12 @@
-import { Signal, useSignal } from '@preact/signals';
+import { Signal, useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 
 import { Directory, DirectoryFile } from '/lib/types.ts';
 import { ResponseBody as UploadResponseBody } from '/pages/api/files/upload.ts';
 import { ResponseBody as ChunkUploadResponseBody } from '/pages/api/files/upload-chunk.ts';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
-import { getUploadErrorAction } from '/public/ts/utils/files.ts';
+import { formatUploadError, getUploadErrorAction } from '/public/ts/utils/files.ts';
+import { showToast } from '/components/toast.ts';
 import { fetchExistingNamesByPath } from './existingFileNames.ts';
 
 // 10 MB chunks keep each request faster.
@@ -47,6 +48,13 @@ export function useUploadQueue(
   const uploadError = useSignal<string>('');
   // Same as the worker: a drop enqueues one file at a time, so each drop's count carries over between calls.
   const uploadedCountByBatchId = useRef(new Map<string, number>());
+
+  // One toast id so a repeated error replaces the toast instead of stacking copies; covers errors the drop hook sets too
+  useSignalEffect(() => {
+    if (uploadError.value) {
+      showToast({ message: formatUploadError(uploadError.value), type: 'error', id: 'upload-error' });
+    }
+  });
 
   useEffect(() => {
     if (!isEnabled || !('serviceWorker' in navigator)) {

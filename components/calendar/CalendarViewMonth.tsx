@@ -107,7 +107,7 @@ export default function CalendarViewWeek(
                   <time
                     datetime={shortIsoDate}
                     class={`cursor-pointer ${
-                      isToday ? 'flex h-6 w-6 items-center justify-center rounded-full bg-[#51A4FB] font-semibold' : ''
+                      isToday ? 'flex h-6 w-6 items-center justify-center rounded-full bg-accent font-semibold' : ''
                     }`}
                     onClick={() => onClickAddEvent(new Date(`${shortIsoDate}T09:00`))}
                     title='Add a new event'

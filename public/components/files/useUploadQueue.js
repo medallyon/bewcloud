@@ -1,7 +1,8 @@
-import { useSignal } from '@preact/signals';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
-import { getUploadErrorAction } from '/public/ts/utils/files.ts';
+import { formatUploadError, getUploadErrorAction } from '/public/ts/utils/files.ts';
+import { showToast } from "/public/components/toast.js";
 import { fetchExistingNamesByPath } from "./existingFileNames.js";
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
 const LAST_SEEN_UPLOAD_ERROR_ID_KEY = 'bewcloud-last-seen-upload-error-id';
@@ -18,6 +19,15 @@ export function useUploadQueue({
   const uploadProgress = useSignal('');
   const uploadError = useSignal('');
   const uploadedCountByBatchId = useRef(new Map());
+  useSignalEffect(() => {
+    if (uploadError.value) {
+      showToast({
+        message: formatUploadError(uploadError.value),
+        type: 'error',
+        id: 'upload-error'
+      });
+    }
+  });
   useEffect(() => {
     if (!isEnabled || !('serviceWorker' in navigator)) {
       return;

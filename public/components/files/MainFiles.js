@@ -1,18 +1,45 @@
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 import { useSignal } from '@preact/signals';
-import { formatUploadError, sortDirectories, sortFiles } from '/public/ts/utils/files.ts';
-import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
-import { useUploadQueue } from "./useUploadQueue.js";
+import { useEffect, useRef } from 'preact/hooks';
+import { sortDirectories, sortFiles, TRASH_PATH } from '/public/ts/utils/files.ts';
+import { createDirectory, createFileShare, deleteDirectory, deleteFile, deleteFileShare, moveDirectory, moveFile, renameDirectory, renameFile, updateFileShare } from "./fileActions.js";
 import { useDragAndDropUpload } from "./useDragAndDropUpload.js";
 import FileConflictModal from "./FileConflictModal.js";
+import { showToast } from "/public/components/toast.js";
+import { postToUploadServiceWorker } from '/public/ts/service-worker.ts';
+import { useUploadQueue } from "./useUploadQueue.js";
 import SearchFiles from "./SearchFiles.js";
-import ListFiles from "./ListFiles.js";
+import FilesList from "./FilesList.js";
+import FilesGrid from "./FilesGrid.js";
+import FilesSidebar from "./FilesSidebar.js";
+import { useInternalDragAndDrop } from "./useInternalDragAndDrop.js";
+import FilesBulkBar from "./FilesBulkBar.js";
+import FilesEmptyState from "./FilesEmptyState.js";
+import ConfirmModal from "./ConfirmModal.js";
+import { toFileItems } from "./fileItemModel.js";
 import FilesBreadcrumb from "./FilesBreadcrumb.js";
 import CreateDirectoryModal from "./CreateDirectoryModal.js";
 import RenameDirectoryOrFileModal from "./RenameDirectoryOrFileModal.js";
 import MoveDirectoryOrFileModal from "./MoveDirectoryOrFileModal.js";
 import CreateShareModal from "./CreateShareModal.js";
 import ManageShareModal from "./ManageShareModal.js";
+const VIEW_OPTIONS = [{
+  view: 'list',
+  label: 'List view'
+}, {
+  view: 'grid',
+  label: 'Grid view'
+}];
+const SORT_OPTIONS = [{
+  column: 'name',
+  label: 'Name'
+}, {
+  column: 'updated_at',
+  label: 'Last update'
+}, {
+  column: 'size_in_bytes',
+  label: 'Size'
+}];
 export default function MainFiles({
   initialDirectories,
   initialFiles,
@@ -23,6 +50,7 @@ export default function MainFiles({
   fileShareId,
   initialSortBy = 'name',
   initialSortOrder = 'asc',
+  initialView = 'list',
   uploadSessionTag
 }) {
   const isAdding = useSignal(false);
@@ -33,15 +61,15 @@ export default function MainFiles({
   const path = useSignal(initialPath);
   const sortBy = useSignal(initialSortBy);
   const sortOrder = useSignal(initialSortOrder);
+  const view = useSignal(initialView);
+  const folderDrawer = useRef(null);
   const chosenDirectories = useSignal([]);
   const chosenFiles = useSignal([]);
-  const isAnyItemChosen = chosenDirectories.value.length > 0 || chosenFiles.value.length > 0;
-  const bulkItemsCount = chosenDirectories.value.length + chosenFiles.value.length;
   const areNewOptionsOpen = useSignal(false);
-  const areBulkOptionsOpen = useSignal(false);
   const isNewDirectoryModalOpen = useSignal(false);
   const renameDirectoryOrFileModal = useSignal(null);
   const moveDirectoryOrFileModal = useSignal(null);
+  const confirmModal = useSignal(null);
   const createShareModal = useSignal(null);
   const manageShareModal = useSignal(null);
   const isCreatingDirectories = useSignal(false);
@@ -88,6 +116,44 @@ export default function MainFiles({
       path: `${parentPath}${name}/`
     });
   }
+  const items = toFileItems(directories.value, files.value, {
+    routePath: fileShareId ? `file-share/${fileShareId}` : 'files',
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+    view: fileShareId ? undefined : view.value
+  });
+  const chosenKeys = [...chosenDirectories.value.map(directory => `${directory.parent_path}${directory.directory_name}/`), ...chosenFiles.value.map(file => `${file.parent_path}${file.file_name}`)];
+  const areAllItemsChosen = chosenKeys.length > 0 && chosenKeys.length === items.length;
+  const areSomeItemsChosen = chosenKeys.length > 0 && !areAllItemsChosen;
+  const dragAndDrop = useInternalDragAndDrop({
+    path,
+    files,
+    directories,
+    items,
+    chosenKeys,
+    clearSelection: () => onToggleChooseAll(false),
+    isEnabled: !fileShareId,
+    onDirectoryMoved: notifyDirectoryGone
+  });
+  const filesDragAndDrop = {
+    dropTargetPath: dragAndDrop.dropTargetPath.value,
+    getItemDragProps: dragAndDrop.getItemDragProps,
+    getDropTargetProps: dragAndDrop.getDropTargetProps
+  };
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      confirmModal.value = null;
+      areNewOptionsOpen.value = false;
+      for (const menu of document.querySelectorAll('details[open]')) {
+        menu.open = false;
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
   function onClickSort(column) {
     let newSortOrder = 'asc';
     if (sortBy.value === column) {
@@ -107,15 +173,37 @@ export default function MainFiles({
     url.searchParams.set('sortBy', column);
     url.searchParams.set('sortOrder', newSortOrder);
     window.history.replaceState({}, '', url.toString());
-    if (!fileShareId) {
-      fetch('/api/files/update-sort', {
-        method: 'POST',
-        body: JSON.stringify({
-          sortBy: column,
-          sortOrder: newSortOrder
-        })
-      }).catch(console.error);
+    saveViewPreferences({
+      sortBy: column,
+      sortOrder: newSortOrder
+    });
+  }
+  async function saveViewPreferences(requestBody) {
+    if (fileShareId) {
+      return;
     }
+    try {
+      const response = await fetch('/api/files/update-sort', {
+        method: 'POST',
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to save view preferences. ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  function onClickView(newView) {
+    view.value = newView;
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', newView);
+    window.history.replaceState({}, '', url.toString());
+    saveViewPreferences({
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      view: newView
+    });
   }
   function onClickUploadFile(uploadDirectory = false) {
     const fileInput = document.createElement('input');
@@ -140,21 +228,7 @@ export default function MainFiles({
     try {
       isCreatingDirectories.value = true;
       currentDirectoryName.value = dirPath;
-      const requestBody = {
-        parentPath: pathInView,
-        name: dirPath
-      };
-      const response = await fetch(`/api/files/create-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to create directory. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to create directory!');
-      }
+      const result = await createDirectory(pathInView, dirPath);
       if (pathInView === path.value) {
         directories.value = [...result.newDirectories];
       }
@@ -183,21 +257,7 @@ export default function MainFiles({
     areNewOptionsOpen.value = false;
     isAdding.value = true;
     try {
-      const requestBody = {
-        parentPath: path.value,
-        name: newDirectoryName
-      };
-      const response = await fetch(`/api/files/create-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to create directory. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to create directory!');
-      }
+      const result = await createDirectory(path.value, newDirectoryName);
       directories.value = [...result.newDirectories];
       isNewDirectoryModalOpen.value = false;
     } catch (error) {
@@ -208,26 +268,12 @@ export default function MainFiles({
   function onCloseCreateDirectory() {
     isNewDirectoryModalOpen.value = false;
   }
-  function toggleNewOptionsDropdown() {
-    areNewOptionsOpen.value = !areNewOptionsOpen.value;
-  }
-  function toggleBulkOptionsDropdown() {
-    areBulkOptionsOpen.value = !areBulkOptionsOpen.value;
-  }
-  function onClickOpenRenameDirectory(parentPath, name) {
+  function onClickOpenRename(item) {
     renameDirectoryOrFileModal.value = {
       isOpen: true,
-      isDirectory: true,
-      parentPath,
-      name
-    };
-  }
-  function onClickOpenRenameFile(parentPath, name) {
-    renameDirectoryOrFileModal.value = {
-      isOpen: true,
-      isDirectory: false,
-      parentPath,
-      name
+      isDirectory: item.isDirectory,
+      parentPath: item.parentPath,
+      name: item.name
     };
   }
   function onClickCloseRename() {
@@ -239,24 +285,9 @@ export default function MainFiles({
     }
     isUpdating.value = true;
     try {
-      const requestBody = {
-        parentPath: renameDirectoryOrFileModal.value.parentPath,
-        oldName: renameDirectoryOrFileModal.value.name,
-        newName
-      };
-      const response = await fetch(`/api/files/rename-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to rename directory. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to rename directory!');
-      }
+      const result = await renameDirectory(renameDirectoryOrFileModal.value.parentPath, renameDirectoryOrFileModal.value.name, newName);
       directories.value = [...result.newDirectories];
-      await notifyDirectoryGone(requestBody.parentPath, requestBody.oldName);
+      await notifyDirectoryGone(renameDirectoryOrFileModal.value.parentPath, renameDirectoryOrFileModal.value.name);
     } catch (error) {
       console.error(error);
     }
@@ -269,22 +300,7 @@ export default function MainFiles({
     }
     isUpdating.value = true;
     try {
-      const requestBody = {
-        parentPath: renameDirectoryOrFileModal.value.parentPath,
-        oldName: renameDirectoryOrFileModal.value.name,
-        newName
-      };
-      const response = await fetch(`/api/files/rename`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to rename file. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to rename file!');
-      }
+      const result = await renameFile(renameDirectoryOrFileModal.value.parentPath, renameDirectoryOrFileModal.value.name, newName);
       files.value = [...result.newFiles];
     } catch (error) {
       console.error(error);
@@ -292,24 +308,37 @@ export default function MainFiles({
     isUpdating.value = false;
     renameDirectoryOrFileModal.value = null;
   }
-  function onClickOpenMoveDirectory(parentPath, name) {
+  function onClickOpenMove(item) {
     moveDirectoryOrFileModal.value = {
       isOpen: true,
-      isDirectory: true,
-      path: parentPath,
-      name
-    };
-  }
-  function onClickOpenMoveFile(parentPath, name) {
-    moveDirectoryOrFileModal.value = {
-      isOpen: true,
-      isDirectory: false,
-      path: parentPath,
-      name
+      isDirectory: item.isDirectory,
+      path: item.parentPath,
+      name: item.name
     };
   }
   function onClickCloseMove() {
     moveDirectoryOrFileModal.value = null;
+  }
+  function onClickBulkMove() {
+    const chosenItems = items.filter(item => chosenKeys.includes(item.key));
+    if (chosenItems.length === 0) {
+      return;
+    }
+    moveDirectoryOrFileModal.value = {
+      isOpen: true,
+      isDirectory: false,
+      path: path.value,
+      name: `${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'}`,
+      items: chosenItems
+    };
+  }
+  async function onClickSaveMove(newPath) {
+    const chosenItems = moveDirectoryOrFileModal.value?.items;
+    if (!chosenItems) {
+      return;
+    }
+    moveDirectoryOrFileModal.value = null;
+    await dragAndDrop.moveItems(chosenItems, newPath);
   }
   async function onClickSaveMoveDirectory(newPath) {
     if (isUpdating.value || !moveDirectoryOrFileModal.value?.isOpen || !moveDirectoryOrFileModal.value?.isDirectory) {
@@ -317,24 +346,9 @@ export default function MainFiles({
     }
     isUpdating.value = true;
     try {
-      const requestBody = {
-        oldParentPath: moveDirectoryOrFileModal.value.path,
-        newParentPath: newPath,
-        name: moveDirectoryOrFileModal.value.name
-      };
-      const response = await fetch(`/api/files/move-directory`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to move directory. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to move directory!');
-      }
+      const result = await moveDirectory(moveDirectoryOrFileModal.value.path, newPath, moveDirectoryOrFileModal.value.name);
       directories.value = [...result.newDirectories];
-      await notifyDirectoryGone(requestBody.oldParentPath, requestBody.name);
+      await notifyDirectoryGone(moveDirectoryOrFileModal.value.path, moveDirectoryOrFileModal.value.name);
     } catch (error) {
       console.error(error);
     }
@@ -347,22 +361,7 @@ export default function MainFiles({
     }
     isUpdating.value = true;
     try {
-      const requestBody = {
-        oldParentPath: moveDirectoryOrFileModal.value.path,
-        newParentPath: newPath,
-        name: moveDirectoryOrFileModal.value.name
-      };
-      const response = await fetch(`/api/files/move`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to move file. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to move file!');
-      }
+      const result = await moveFile(moveDirectoryOrFileModal.value.path, newPath, moveDirectoryOrFileModal.value.name);
       files.value = [...result.newFiles];
     } catch (error) {
       console.error(error);
@@ -370,132 +369,132 @@ export default function MainFiles({
     isUpdating.value = false;
     moveDirectoryOrFileModal.value = null;
   }
-  function onClickDownloadDirectory(parentPath, name) {
-    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(parentPath)}&name=${encodeURIComponent(name)}`;
+  function onClickDownloadDirectory(item) {
+    const downloadUrl = `/api/files/download-directory?parentPath=${encodeURIComponent(item.parentPath)}&name=${encodeURIComponent(item.name)}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `${name}.zip`;
+    link.download = `${item.name}.zip`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }
-  async function onClickDeleteDirectory(parentPath, name, isBulkDeleting = false) {
-    if (isBulkDeleting || confirm('Are you sure you want to delete this directory?')) {
-      if (!isBulkDeleting && isDeleting.value) {
-        return;
-      }
-      isDeleting.value = true;
-      try {
-        const requestBody = {
-          parentPath,
-          name
-        };
-        const response = await fetch(`/api/files/delete-directory`, {
-          method: 'POST',
-          body: JSON.stringify(requestBody)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to delete directory. ${response.statusText} ${await response.text()}`);
-        }
-        const result = await response.json();
-        if (!result.success) {
-          throw new Error('Failed to delete directory!');
-        }
-        directories.value = [...result.newDirectories];
-        await notifyDirectoryGone(parentPath, name);
-      } catch (error) {
-        console.error(error);
-      }
-      isDeleting.value = false;
-    }
-  }
-  async function onClickDeleteFile(parentPath, name, isBulkDeleting = false) {
-    if (isBulkDeleting || confirm('Are you sure you want to delete this file?')) {
-      if (!isBulkDeleting && isDeleting.value) {
-        return;
-      }
-      isDeleting.value = true;
-      try {
-        const requestBody = {
-          parentPath,
-          name
-        };
-        const response = await fetch(`/api/files/delete`, {
-          method: 'POST',
-          body: JSON.stringify(requestBody)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to delete file. ${response.statusText} ${await response.text()}`);
-        }
-        const result = await response.json();
-        if (!result.success) {
-          throw new Error('Failed to delete file!');
-        }
-        files.value = [...result.newFiles];
-      } catch (error) {
-        console.error(error);
-      }
-      isDeleting.value = false;
-    }
-  }
-  function onClickChooseDirectory(parentPath, name) {
-    if (parentPath === '/' && name === '.Trash') {
+  async function deleteItem(item) {
+    if (item.isDirectory) {
+      const result = await deleteDirectory(item.parentPath, item.name);
+      directories.value = [...result.newDirectories];
+      await postToUploadServiceWorker({
+        type: 'DIRECTORY_DELETED',
+        sessionTag: uploadSessionTag ?? '',
+        path: item.fullPath
+      });
       return;
     }
-    const chosenDirectoryIndex = chosenDirectories.value.findIndex(directory => directory.parent_path === parentPath && directory.directory_name === name);
-    if (chosenDirectoryIndex === -1) {
-      chosenDirectories.value = [...chosenDirectories.value, {
-        parent_path: parentPath,
-        directory_name: name
-      }];
-    } else {
-      const newChosenDirectories = chosenDirectories.peek();
-      newChosenDirectories.splice(chosenDirectoryIndex, 1);
-      chosenDirectories.value = [...newChosenDirectories];
-    }
+    const result = await deleteFile(item.parentPath, item.name);
+    files.value = [...result.newFiles];
   }
-  function onClickChooseFile(parentPath, name) {
-    const chosenFileIndex = chosenFiles.value.findIndex(file => file.parent_path === parentPath && file.file_name === name);
+  async function deleteItems(items) {
+    if (isDeleting.value) {
+      return;
+    }
+    isDeleting.value = true;
+    try {
+      for (const item of items) {
+        await deleteItem(item);
+      }
+      chosenDirectories.value = [];
+      chosenFiles.value = [];
+    } catch (error) {
+      console.error(error);
+      showToast({
+        message: 'Some items could not be deleted.',
+        type: 'error'
+      });
+    }
+    isDeleting.value = false;
+  }
+  function onClickDelete(item) {
+    const isAlreadyInTrash = item.fullPath.startsWith(TRASH_PATH);
+    const itemLabel = item.isDirectory ? 'directory' : 'file';
+    confirmModal.value = {
+      isOpen: true,
+      title: isAlreadyInTrash ? `Delete ${itemLabel}` : `Move ${itemLabel} to Trash`,
+      message: isAlreadyInTrash ? `"${item.name}" will be deleted permanently. Any public share link for it stops working.` : `"${item.name}" moves to the Trash. Any public share link for it stops working, and undoing that isn't possible.`,
+      confirmLabel: isAlreadyInTrash ? 'Delete permanently' : 'Move to Trash',
+      isDangerous: true,
+      onConfirm: async () => {
+        confirmModal.value = null;
+        await deleteItems([item]);
+        showToast({
+          message: isAlreadyInTrash ? `Deleted "${item.name}".` : `Moved "${item.name}" to the Trash.`,
+          type: 'success'
+        });
+      }
+    };
+  }
+  function onToggleChoose(item) {
+    if (item.isDirectory) {
+      const chosenDirectoryIndex = chosenDirectories.value.findIndex(directory => directory.parent_path === item.parentPath && directory.directory_name === item.name);
+      if (chosenDirectoryIndex === -1) {
+        chosenDirectories.value = [...chosenDirectories.value, {
+          parent_path: item.parentPath,
+          directory_name: item.name
+        }];
+      } else {
+        chosenDirectories.value = chosenDirectories.value.filter((_directory, index) => index !== chosenDirectoryIndex);
+      }
+      return;
+    }
+    const chosenFileIndex = chosenFiles.value.findIndex(file => file.parent_path === item.parentPath && file.file_name === item.name);
     if (chosenFileIndex === -1) {
       chosenFiles.value = [...chosenFiles.value, {
-        parent_path: parentPath,
-        file_name: name
+        parent_path: item.parentPath,
+        file_name: item.name
       }];
     } else {
-      const newChosenFiles = chosenFiles.peek();
-      newChosenFiles.splice(chosenFileIndex, 1);
-      chosenFiles.value = [...newChosenFiles];
+      chosenFiles.value = chosenFiles.value.filter((_file, index) => index !== chosenFileIndex);
     }
   }
-  async function onClickBulkDelete() {
-    if (confirm(`Are you sure you want to delete ${bulkItemsCount === 1 ? 'this' : 'these'} ${bulkItemsCount} item${bulkItemsCount === 1 ? '' : 's'}?`)) {
-      if (isDeleting.value) {
-        return;
-      }
-      isDeleting.value = true;
-      try {
-        for (const directory of chosenDirectories.value) {
-          await onClickDeleteDirectory(directory.parent_path, directory.directory_name, true);
-        }
-        for (const file of chosenFiles.value) {
-          await onClickDeleteDirectory(file.parent_path, file.file_name, true);
-        }
-        chosenDirectories.value = [];
-        chosenFiles.value = [];
-      } catch (error) {
-        console.error(error);
-      }
-      isDeleting.value = false;
+  function onToggleChooseAll(shouldChoose) {
+    if (!shouldChoose) {
+      chosenDirectories.value = [];
+      chosenFiles.value = [];
+      return;
     }
+    chosenDirectories.value = directories.value.filter(directory => `${directory.parent_path}${directory.directory_name}/` !== TRASH_PATH).map(directory => ({
+      parent_path: directory.parent_path,
+      directory_name: directory.directory_name
+    }));
+    chosenFiles.value = files.value.map(file => ({
+      parent_path: file.parent_path,
+      file_name: file.file_name
+    }));
   }
-  function onClickCreateShare(filePath) {
+  function onClickBulkDelete() {
+    const chosenItems = items.filter(item => chosenKeys.includes(item.key));
+    confirmModal.value = {
+      isOpen: true,
+      title: `Move ${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'} to Trash`,
+      message: `${chosenItems.length === 1 ? 'It' : 'They'} move to the Trash, and any public share link stops working.`,
+      confirmLabel: 'Move to Trash',
+      isDangerous: true,
+      onConfirm: async () => {
+        confirmModal.value = null;
+        await deleteItems(chosenItems);
+        showToast({
+          message: `Moved ${chosenItems.length} item${chosenItems.length === 1 ? '' : 's'} to the Trash.`,
+          type: 'success'
+        });
+      }
+    };
+  }
+  function onClickCreateShare(item) {
     if (createShareModal.value?.isOpen) {
       createShareModal.value = null;
       return;
     }
     createShareModal.value = {
       isOpen: true,
-      filePath
+      filePath: item.isDirectory ? item.fullPath.slice(0, -1) : item.fullPath
     };
   }
   async function onClickSaveFileShare(filePath, password) {
@@ -507,22 +506,7 @@ export default function MainFiles({
     }
     isAdding.value = true;
     try {
-      const requestBody = {
-        pathInView: path.value,
-        filePath,
-        password
-      };
-      const response = await fetch(`/api/files/create-share`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to create share. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to create share!');
-      }
+      const result = await createFileShare(path.value, filePath, password);
       directories.value = [...result.newDirectories];
       files.value = [...result.newFiles];
       createShareModal.value = null;
@@ -550,22 +534,7 @@ export default function MainFiles({
     }
     isUpdating.value = true;
     try {
-      const requestBody = {
-        pathInView: path.value,
-        fileShareId,
-        password
-      };
-      const response = await fetch(`/api/files/update-share`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to update share. ${response.statusText} ${await response.text()}`);
-      }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to update share!');
-      }
+      const result = await updateFileShare(path.value, fileShareId, password);
       directories.value = [...result.newDirectories];
       files.value = [...result.newFiles];
       manageShareModal.value = null;
@@ -577,34 +546,38 @@ export default function MainFiles({
   function onClickCloseManageShare() {
     manageShareModal.value = null;
   }
-  async function onClickDeleteFileShare(fileShareId) {
-    if (!fileShareId || isDeleting.value || !confirm('Are you sure you want to delete this public share link?')) {
+  function onClickDeleteFileShare(fileShareId) {
+    if (!fileShareId || isDeleting.value) {
       return;
     }
-    isDeleting.value = true;
-    try {
-      const requestBody = {
-        pathInView: path.value,
-        fileShareId
-      };
-      const response = await fetch(`/api/files/delete-share`, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to delete file share. ${response.statusText} ${await response.text()}`);
+    manageShareModal.value = null;
+    confirmModal.value = {
+      isOpen: true,
+      title: 'Delete public share link',
+      message: 'Anyone holding the link loses access. The file itself stays where it is.',
+      confirmLabel: 'Delete link',
+      isDangerous: true,
+      onConfirm: async () => {
+        confirmModal.value = null;
+        isDeleting.value = true;
+        try {
+          const result = await deleteFileShare(path.value, fileShareId);
+          directories.value = [...result.newDirectories];
+          files.value = [...result.newFiles];
+          showToast({
+            message: 'Public share link deleted.',
+            type: 'success'
+          });
+        } catch (error) {
+          console.error(error);
+          showToast({
+            message: 'Failed to delete the public share link.',
+            type: 'error'
+          });
+        }
+        isDeleting.value = false;
       }
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error('Failed to delete file share!');
-      }
-      directories.value = [...result.newDirectories];
-      files.value = [...result.newFiles];
-      manageShareModal.value = null;
-    } catch (error) {
-      console.error(error);
-    }
-    isDeleting.value = false;
+    };
   }
   return h("div", _extends({
     class: "relative"
@@ -616,7 +589,7 @@ export default function MainFiles({
   } : {}), isDraggingOver.value && !fileShareId && h("div", {
     class: "fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
   }, h("div", {
-    class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
+    class: "bg-accent text-on-color p-8 rounded-lg border-2 border-dashed border-on-color max-w-md text-center"
   }, h("img", {
     src: "/public/images/add.svg",
     alt: "Upload",
@@ -627,105 +600,145 @@ export default function MainFiles({
     class: "text-xl font-semibold mb-2"
   }, "Drop files or directories here to upload"), h("p", {
     class: "text-sm opacity-90"
-  }, "Release to upload files to the current directory"))), h("section", {
-    class: "flex flex-row items-center justify-between mb-4"
+  }, "Release to upload files to the current directory"))), h("div", {
+    class: "flex gap-4"
+  }, !fileShareId ? h("aside", {
+    class: "hidden w-56 shrink-0 md:block"
+  }, h(FilesSidebar, {
+    path: path.value,
+    directories: directories.value,
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+    view: view.value,
+    dragAndDrop: filesDragAndDrop
+  })) : null, h("div", {
+    class: "min-w-0 flex-1"
   }, h("section", {
-    class: "relative inline-block text-left mr-2"
+    class: "sticky top-0 z-20 -mx-2 mb-3 flex flex-wrap items-center gap-2 bg-slate-800 px-2 py-2"
   }, h("section", {
-    class: "flex flex-row items-center justify-start"
-  }, !fileShareId ? h(SearchFiles, null) : null, isAnyItemChosen ? h("section", {
-    class: "relative inline-block text-left ml-2"
-  }, h("div", null, h("button", {
-    class: "inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2 w-11 h-9",
+    class: "order-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+  }, !fileShareId ? h("button", {
+    class: "flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white md:hidden",
     type: "button",
-    title: "Bulk actions",
-    id: "bulk-button",
-    "aria-expanded": "true",
-    "aria-haspopup": "true",
-    onClick: () => toggleBulkOptionsDropdown()
+    title: "Browse folders",
+    onClick: () => folderDrawer.current?.showModal()
   }, h("img", {
-    src: `/public/images/${areBulkOptionsOpen.value ? 'hide-options' : 'show-options'}.svg`,
-    alt: "Bulk actions",
-    class: `white w-5 max-w-5`,
+    src: "/public/images/directory.svg",
+    alt: "Browse folders",
+    class: "white w-5 max-w-5",
     width: 20,
     height: 20
-  }))), h("div", {
-    class: `absolute left-0 z-10 mt-2 w-44 origin-top-left rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15 focus:outline-none ${!areBulkOptionsOpen.value ? 'hidden' : ''}`,
-    role: "menu",
-    "aria-orientation": "vertical",
-    "aria-labelledby": "bulk-button",
-    tabindex: -1
-  }, h("div", {
-    class: "py-1"
-  }, h("button", {
-    class: `text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`,
-    onClick: () => onClickBulkDelete(),
-    type: "button"
-  }, "Delete ", bulkItemsCount, " item", bulkItemsCount === 1 ? '' : 's')))) : null)), h("section", {
-    class: "flex items-center justify-end"
-  }, h(FilesBreadcrumb, {
+  })) : null, h(FilesBreadcrumb, {
     path: path.value,
     fileShareId: fileShareId,
     sortBy: sortBy.value,
-    sortOrder: sortOrder.value
-  }), !fileShareId ? h("section", {
-    class: "relative inline-block text-left ml-2"
-  }, h("div", null, h("button", {
-    class: "inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2",
+    sortOrder: sortOrder.value,
+    view: fileShareId ? undefined : view.value,
+    dragAndDrop: fileShareId ? undefined : filesDragAndDrop
+  })), h("section", {
+    class: "order-3 flex w-full items-center gap-2 md:order-2 md:w-auto"
+  }, !fileShareId ? h(SearchFiles, null) : null, h("details", {
+    class: "relative shrink-0",
+    name: "files-toolbar-menu"
+  }, h("summary", {
+    class: "flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white",
+    title: "Sort"
+  }, h("img", {
+    src: `/public/images/sort-${sortOrder.value === 'asc' ? 'up' : 'down'}.svg`,
+    alt: "Sort",
+    class: "white w-5 max-w-5",
+    width: 20,
+    height: 20
+  })), h("div", {
+    class: "absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
+  }, SORT_OPTIONS.map(option => h("button", {
+    key: option.column,
     type: "button",
-    title: "Add new file or directory",
-    id: "new-button",
-    "aria-expanded": "true",
-    "aria-haspopup": "true",
-    onClick: () => toggleNewOptionsDropdown()
+    class: `flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-slate-600 ${sortBy.value === option.column ? 'text-accent font-semibold' : 'text-white'}`,
+    onClick: () => onClickSort(option.column)
+  }, option.label, sortBy.value === option.column ? sortOrder.value === 'asc' ? ' ↑' : ' ↓' : '')))), !fileShareId ? h("section", {
+    class: "flex shrink-0 items-center rounded-lg border border-slate-600"
+  }, VIEW_OPTIONS.map(option => h("button", {
+    key: option.view,
+    type: "button",
+    class: `flex min-h-11 min-w-11 items-center justify-center rounded-lg ${view.value === option.view ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`,
+    "aria-pressed": view.value === option.view,
+    title: option.label,
+    onClick: () => onClickView(option.view)
+  }, h("img", {
+    src: `/public/images/${option.view}-view.svg`,
+    alt: option.label,
+    class: "white w-5 max-w-5",
+    width: 20,
+    height: 20
+  })))) : null, !fileShareId ? h("details", {
+    class: "relative shrink-0",
+    name: "files-toolbar-menu"
+  }, h("summary", {
+    class: "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-color hover:bg-accent-hover",
+    title: "Add new file or directory"
   }, h("img", {
     src: "/public/images/add.svg",
-    alt: "Add new file or directory",
+    alt: "",
     class: `white ${isAdding.value || isUploading.value || isCreatingDirectories.value || isResolvingConflicts.value ? 'animate-spin' : ''}`,
     width: 20,
     height: 20
-  }))), h("div", {
-    class: `absolute right-0 z-10 mt-2 w-44 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black/15 focus:outline-none ${!areNewOptionsOpen.value ? 'hidden' : ''}`,
-    role: "menu",
-    "aria-orientation": "vertical",
-    "aria-labelledby": "new-button",
-    tabindex: -1
-  }, h("div", {
-    class: "py-1"
+  }), "New"), h("div", {
+    class: "absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl border border-slate-500 bg-slate-700 py-1 shadow-lg"
   }, h("button", {
-    class: `text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`,
+    class: "flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600",
     onClick: () => onClickUploadFile(),
     type: "button"
-  }, "Upload Files"), h("button", {
-    class: `text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`,
+  }, "Upload files"), h("button", {
+    class: "flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600",
     onClick: () => onClickUploadFile(true),
     type: "button"
-  }, "Upload Directory"), h("button", {
-    class: `text-white block px-4 py-2 text-sm w-full text-left hover:bg-slate-600`,
+  }, "Upload directory"), h("button", {
+    class: "flex min-h-11 w-full items-center px-4 text-left text-sm text-white hover:bg-slate-600",
     onClick: () => onClickCreateDirectory(),
     type: "button"
-  }, "New Directory")))) : null)), h("section", {
-    class: "mx-auto max-w-7xl my-8"
-  }, h(ListFiles, {
-    directories: directories.value,
-    files: files.value,
-    chosenDirectories: chosenDirectories.value,
-    chosenFiles: chosenFiles.value,
-    onClickChooseDirectory: onClickChooseDirectory,
-    onClickChooseFile: onClickChooseFile,
-    onClickOpenRenameDirectory: onClickOpenRenameDirectory,
-    onClickOpenRenameFile: onClickOpenRenameFile,
-    onClickOpenMoveDirectory: onClickOpenMoveDirectory,
-    onClickOpenMoveFile: onClickOpenMoveFile,
-    onClickDeleteDirectory: onClickDeleteDirectory,
-    onClickDeleteFile: onClickDeleteFile,
-    onClickCreateShare: isFileSharingAllowed ? onClickCreateShare : undefined,
-    onClickOpenManageShare: isFileSharingAllowed ? onClickOpenManageShare : undefined,
-    onClickDownloadDirectory: areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
-    fileShareId: fileShareId,
+  }, "New directory"))) : null)), h("section", {
+    class: "my-2"
+  }, !fileShareId ? h(FilesBulkBar, {
+    chosenItemsCount: chosenKeys.length,
+    onClickMove: onClickBulkMove,
+    onClickDelete: onClickBulkDelete,
+    onClickClear: () => onToggleChooseAll(false)
+  }) : null, items.length === 0 ? h(FilesEmptyState, {
+    itemPluralLabel: "files",
+    isTrash: path.value === TRASH_PATH,
+    onClickUpload: fileShareId ? undefined : () => onClickUploadFile()
+  }) : view.value === 'grid' ? h(FilesGrid, {
+    items: items,
+    chosenKeys: chosenKeys,
+    isSelectable: !fileShareId,
+    areThumbnailsAvailable: !fileShareId,
+    onToggleChoose: onToggleChoose,
+    dragAndDrop: fileShareId ? undefined : filesDragAndDrop,
+    onClickRename: fileShareId ? undefined : onClickOpenRename,
+    onClickMove: fileShareId ? undefined : onClickOpenMove,
+    onClickDelete: fileShareId ? undefined : onClickDelete,
+    onClickDownload: !fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
+    onClickCreateShare: !fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined,
+    onClickManageShare: !fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined
+  }) : h(FilesList, {
+    items: items,
+    chosenKeys: chosenKeys,
+    areAllItemsChosen: areAllItemsChosen,
+    areSomeItemsChosen: areSomeItemsChosen,
+    isSelectable: !fileShareId,
     sortBy: sortBy.value,
     sortOrder: sortOrder.value,
-    onClickSort: onClickSort
+    onClickSort: onClickSort,
+    onToggleChoose: onToggleChoose,
+    onToggleChooseAll: onToggleChooseAll,
+    dragAndDrop: fileShareId ? undefined : filesDragAndDrop,
+    onClickRename: fileShareId ? undefined : onClickOpenRename,
+    onClickMove: fileShareId ? undefined : onClickOpenMove,
+    onClickDelete: fileShareId ? undefined : onClickDelete,
+    onClickDownload: !fileShareId && areDirectoryDownloadsAllowed ? onClickDownloadDirectory : undefined,
+    onClickCreateShare: !fileShareId && isFileSharingAllowed ? onClickCreateShare : undefined,
+    onClickManageShare: !fileShareId && isFileSharingAllowed ? onClickOpenManageShare : undefined
   }), h("span", {
     class: `flex justify-end items-center text-sm mt-1 mx-2 text-slate-100`
   }, isDeleting.value ? h(Fragment, null, h("img", {
@@ -760,12 +773,7 @@ export default function MainFiles({
     class: "white mr-2",
     width: 18,
     height: 18
-  }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isResolvingConflicts.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
-    class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
-  }, h("span", {
-    class: "truncate min-w-0",
-    title: formatUploadError(uploadError.value)
-  }, formatUploadError(uploadError.value))) : null, skippedFilesNotice.value ? h("span", {
+  }), "Updating...") : null, !isDeleting.value && !isAdding.value && !isCreatingDirectories.value && !isResolvingConflicts.value && !isUploading.value && !isUpdating.value ? h(Fragment, null, "\xA0") : null), skippedFilesNotice.value ? h("span", {
     class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
   }, h("span", {
     class: "truncate min-w-0",
@@ -776,7 +784,31 @@ export default function MainFiles({
     class: "font-semibold"
   }, "WebDav URL:"), ' ', h("code", {
     class: "bg-slate-600 mx-2 px-2 py-1 rounded-md"
-  }, baseUrl, "/dav")) : null, !fileShareId ? h(CreateDirectoryModal, {
+  }, baseUrl, "/dav")) : null)), !fileShareId ? h("dialog", {
+    ref: folderDrawer,
+    class: "m-0 h-full max-h-none w-72 max-w-[85vw] bg-slate-800 p-4 text-white backdrop:bg-black/50 md:hidden",
+    onClick: event => {
+      if (event.target === folderDrawer.current) {
+        folderDrawer.current?.close();
+      }
+    }
+  }, h("header", {
+    class: "mb-2 flex items-center justify-between"
+  }, h("h2", {
+    class: "text-lg font-semibold"
+  }, "Folders"), h("button", {
+    class: "min-h-11 min-w-11 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white",
+    type: "button",
+    "aria-label": "Close",
+    onClick: () => folderDrawer.current?.close()
+  }, "\u2715")), h(FilesSidebar, {
+    path: path.value,
+    directories: directories.value,
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+    view: view.value,
+    dragAndDrop: filesDragAndDrop
+  })) : null, !fileShareId ? h(CreateDirectoryModal, {
     isOpen: isNewDirectoryModalOpen.value,
     onClickSave: onClickSaveDirectory,
     onClose: onCloseCreateDirectory
@@ -799,7 +831,8 @@ export default function MainFiles({
     isDirectory: moveDirectoryOrFileModal.value?.isDirectory || false,
     initialPath: moveDirectoryOrFileModal.value?.path || '',
     name: moveDirectoryOrFileModal.value?.name || '',
-    onClickSave: moveDirectoryOrFileModal.value?.isDirectory ? onClickSaveMoveDirectory : onClickSaveMoveFile,
+    directoryPathsToExclude: moveDirectoryOrFileModal.value?.items?.filter(item => item.isDirectory).map(item => item.fullPath),
+    onClickSave: moveDirectoryOrFileModal.value?.items ? onClickSaveMove : moveDirectoryOrFileModal.value?.isDirectory ? onClickSaveMoveDirectory : onClickSaveMoveFile,
     onClose: onClickCloseMove
   }) : null, !fileShareId && isFileSharingAllowed ? h(CreateShareModal, {
     isOpen: createShareModal.value?.isOpen || false,
@@ -814,5 +847,8 @@ export default function MainFiles({
     onClickSave: onClickUpdateFileShare,
     onClickDelete: onClickDeleteFileShare,
     onClose: onClickCloseManageShare
-  }) : null);
+  }) : null, h(ConfirmModal, {
+    state: confirmModal.value,
+    onClose: () => confirmModal.value = null
+  }));
 }

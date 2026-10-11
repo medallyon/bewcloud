@@ -5,6 +5,7 @@ export default function MoveDirectoryOrFileModal({
   initialPath,
   isDirectory,
   name,
+  directoryPathsToExclude,
   onClickSave,
   onClose
 }) {
@@ -36,7 +37,7 @@ export default function MoveDirectoryOrFileModal({
       if (!result.success) {
         throw new Error('Failed to get directories!');
       }
-      directories.value = [...result.directories];
+      directories.value = result.directories.filter(directory => !directoryPathsToExclude?.includes(`${directory.parent_path}${directory.directory_name}/`));
       isLoading.value = false;
     } catch (error) {
       console.error(error);

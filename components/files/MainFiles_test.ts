@@ -11,7 +11,9 @@ function renderAndCollectDropHandlers(fileShareId?: string) {
 
   options.vnode = (vnode: VNode) => {
     if (typeof vnode.type === 'string' && (vnode.props as Record<string, unknown>).onDrop) {
-      elementsWithDropHandlers.push(vnode.type);
+      elementsWithDropHandlers.push(
+        `${vnode.type}${(vnode.props as Record<string, unknown>).class === 'relative' ? '.relative' : ''}`,
+      );
     }
 
     originalVnodeHook?.(vnode);
@@ -35,7 +37,8 @@ function renderAndCollectDropHandlers(fileShareId?: string) {
 }
 
 Deno.test('that the files view accepts drops', () => {
-  assertEquals(renderAndCollectDropHandlers().length, 1);
+  // The sidebar and rows have drop targets for moving items too, so only the root element takes uploads
+  assertEquals(renderAndCollectDropHandlers().filter((element) => element === 'div.relative').length, 1);
 });
 
 Deno.test('that a public file share does not accept drops', () => {

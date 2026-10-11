@@ -144,7 +144,7 @@ export default function Calendars({ initialCalendars }: CalendarsProps) {
         <a href='/calendar' class='mr-2'>View calendar</a>
         <section class='flex items-center'>
           <button
-            class='inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2'
+            class='inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2'
             type='button'
             title='Add new calendar'
             onClick={() => onClickAddCalendar()}

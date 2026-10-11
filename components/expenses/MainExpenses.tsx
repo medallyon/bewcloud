@@ -708,7 +708,7 @@ export default function MainExpenses({ initialBudgets, initialExpenses, initialM
           <section class='relative inline-block text-left ml-2 mr-4 md:mr-0'>
             <div>
               <button
-                class='inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2 min-w-10'
+                class='inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2 min-w-10'
                 type='button'
                 title='Add new expense or budget'
                 id='new-button'

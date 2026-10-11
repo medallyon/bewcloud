@@ -76,7 +76,7 @@ export default function ViewEventModal({
     class: "flex justify-between mt-2"
   }, h("button", {
     type: "button",
-    class: "px-5 py-2 bg-slate-600 hover:bg-red-600 text-white cursor-pointer rounded-md",
+    class: "px-5 py-2 bg-slate-600 hover:bg-red-600 text-white hover:text-on-color cursor-pointer rounded-md",
     onClick: () => onClickDelete(calendarEvent.uid)
   }, "Delete"), h("a", {
     href: `/calendar/${calendarEvent.uid}?calendarId=${calendar.uid}`,

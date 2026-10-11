@@ -34,6 +34,11 @@ export function bytesFromHumanFileSize(humanFileSize: string) {
 
 export type SortColumn = 'name' | 'updated_at' | 'size_in_bytes';
 export type SortOrder = 'asc' | 'desc';
+export type FileView = 'list' | 'grid';
+
+export const VALID_SORT_COLUMNS: SortColumn[] = ['name', 'updated_at', 'size_in_bytes'];
+export const VALID_SORT_ORDERS: SortOrder[] = ['asc', 'desc'];
+export const VALID_FILE_VIEWS: FileView[] = ['list', 'grid'];
 
 export interface SortOptions {
   sortBy: SortColumn;
@@ -148,4 +153,22 @@ export function getUploadErrorAction(
   }
 
   return isShowingWorkerError ? 'clear' : null;
+}
+
+export interface MovableItem {
+  /** Directories carry a trailing slash, files don't. */
+  fullPath: string;
+  isDirectory: boolean;
+}
+
+// Whether a set of items may be dropped into a directory: the same parent is a no-op, and a directory can neither be
+// dropped into itself nor into anything below it. Dropping into /.Trash/ is just a move, so it stays allowed.
+export function isValidMoveTarget(items: MovableItem[], sourcePath: string, targetPath: string): boolean {
+  if (items.length === 0 || targetPath === sourcePath) {
+    return false;
+  }
+
+  return !items.some((item) =>
+    item.isDirectory && (targetPath === item.fullPath || targetPath.startsWith(item.fullPath))
+  );
 }

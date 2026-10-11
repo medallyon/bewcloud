@@ -7,7 +7,6 @@ import ListFiles from "/public/components/files/ListFiles.js";
 import FilesBreadcrumb from "/public/components/files/FilesBreadcrumb.js";
 import ListPhotos from "/public/components/photos/ListPhotos.js";
 import { isPhotoFile, PHOTO_EXTENSIONS } from '/public/ts/utils/photos.ts';
-import { formatUploadError } from '/public/ts/utils/files.ts';
 export default function MainPhotos({
   initialDirectories,
   initialFiles,
@@ -124,7 +123,7 @@ export default function MainPhotos({
   }, isDraggingOver.value && h("div", {
     class: "fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
   }, h("div", {
-    class: "bg-[#51A4FB] text-white p-8 rounded-lg border-2 border-dashed border-white max-w-md text-center"
+    class: "bg-accent text-on-color p-8 rounded-lg border-2 border-dashed border-on-color max-w-md text-center"
   }, h("img", {
     src: "/public/images/add.svg",
     alt: "Upload",
@@ -145,7 +144,7 @@ export default function MainPhotos({
   }), h("section", {
     class: "relative inline-block text-left ml-2"
   }, h("div", null, h("button", {
-    class: "inline-block justify-center gap-x-1.5 rounded-md bg-[#51A4FB] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400 ml-2",
+    class: "inline-block justify-center gap-x-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-color shadow-sm hover:bg-accent-hover ml-2",
     type: "button",
     title: "Add new file or directory",
     id: "new-button",
@@ -201,12 +200,7 @@ export default function MainPhotos({
     height: 18
   }), h("span", {
     class: "truncate min-w-0"
-  }, uploadProgress.value || 'Uploading...')) : null, !isAdding.value && !isResolvingConflicts.value && !isUploading.value ? h(Fragment, null, "\xA0") : null), uploadError.value ? h("span", {
-    class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
-  }, h("span", {
-    class: "truncate min-w-0",
-    title: formatUploadError(uploadError.value)
-  }, formatUploadError(uploadError.value))) : null, skippedFilesNotice.value ? h("span", {
+  }, uploadProgress.value || 'Uploading...')) : null, !isAdding.value && !isResolvingConflicts.value && !isUploading.value ? h(Fragment, null, "\xA0") : null), skippedFilesNotice.value ? h("span", {
     class: "flex justify-end items-center text-sm mt-1 mx-2 text-red-400"
   }, h("span", {
     class: "truncate min-w-0",

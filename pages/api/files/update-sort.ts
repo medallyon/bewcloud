@@ -1,19 +1,25 @@
 import page, { RequestHandlerParams } from '/lib/page.ts';
 
 import { UserModel } from '/lib/models/user.ts';
-import { SortColumn, SortOrder } from '/public/ts/utils/files.ts';
+import {
+  FileView,
+  SortColumn,
+  SortOrder,
+  VALID_FILE_VIEWS,
+  VALID_SORT_COLUMNS,
+  VALID_SORT_ORDERS,
+} from '/public/ts/utils/files.ts';
 
+// Stores the files view preferences: sorting, and whether the listing shows as a list or a grid
 export interface RequestBody {
   sortBy: SortColumn;
   sortOrder: SortOrder;
+  view?: FileView;
 }
 
 export interface ResponseBody {
   success: boolean;
 }
-
-const VALID_SORT_COLUMNS: SortColumn[] = ['name', 'updated_at', 'size_in_bytes'];
-const VALID_SORT_ORDERS: SortOrder[] = ['asc', 'desc'];
 
 async function post({ request, user }: RequestHandlerParams) {
   const requestBody = await request.clone().json() as RequestBody;
@@ -22,7 +28,15 @@ async function post({ request, user }: RequestHandlerParams) {
     return new Response('Bad Request', { status: 400 });
   }
 
+  if (typeof requestBody.view !== 'undefined' && !VALID_FILE_VIEWS.includes(requestBody.view)) {
+    return new Response('Bad Request', { status: 400 });
+  }
+
   user!.extra.file_sorting = { sort_by: requestBody.sortBy, sort_order: requestBody.sortOrder };
+
+  if (requestBody.view) {
+    user!.extra.file_view = requestBody.view;
+  }
 
   await UserModel.update(user!);
 

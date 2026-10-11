@@ -4,8 +4,16 @@ import denoConfig from '/deno.json' with { type: 'json' };
 import { RequestHandlerParams } from '/lib/page.ts';
 import { AppConfig } from '/lib/config.ts';
 import { escapeHtml, html } from '/public/ts/utils/misc.ts';
+import {
+  DEFAULT_THEME_ID,
+  isThemeId,
+  parseThemeOverrides,
+  THEME_COLORS,
+  themeOverridesToCssText,
+} from '/public/ts/utils/theme.ts';
 
 import Header from '/components/Header.tsx';
+import Sidebar from '/components/Sidebar.tsx';
 
 interface BasicLayoutOptions
   extends Pick<RequestHandlerParams, 'user' | 'session' | 'request' | 'match' | 'isRunningLocally'> {
@@ -30,19 +38,37 @@ async function basicLayout(
     title = `${titlePrefix} - bewCloud`;
   }
 
+  // Rendered server-side, so there's no flash of the default theme before a saved one applies
+  const theme = isThemeId(user?.extra.theme) ? user.extra.theme : DEFAULT_THEME_ID;
+
+  const themeOverrides = parseThemeOverrides(user?.extra.theme_overrides);
+  const themeOverridesCssText = themeOverridesToCssText(themeOverrides);
+  const themeColor = themeOverrides['chrome-gradient-start'] || themeOverrides['chrome'] || THEME_COLORS.get(theme);
+
   const headerReactNode = <Header route={currentPath} user={user} enabledApps={enabledApps} />;
 
   const headerHtml = renderToString(headerReactNode);
 
+  // App navigation only exists for a signed-in user outside a public file share, matching what the header renders
+  const isAppNavigationShown = Boolean(user) && !currentPath.startsWith('/file-share');
+
+  const sidebarHtml = isAppNavigationShown
+    ? renderToString(<Sidebar route={currentPath} enabledApps={enabledApps} />)
+    : '';
+
   return html`
     <!DOCTYPE html>
-    <html lang="en" dir="ltr" class="h-full bg-slate-800">
+    <html lang="en" dir="ltr" class="h-full bg-slate-800" data-theme="${theme}" ${themeOverridesCssText
+      ? `style="${themeOverridesCssText}"`
+      : ''}>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${escapeHtml(title)}</title>
         <meta name="description" content="${escapeHtml(description || defaultDescription)}">
         <meta name="author" content="Bruno Bernardino">
+        <!-- Overrides the manifest's static theme_color, so PWA chrome follows the chosen theme -->
+        <meta name="theme-color" content="${themeColor}">
         <meta property="og:title" content="${escapeHtml(defaultTitle)}" />
         <link rel="icon" href="/public/images/favicon-dark.png" type="image/png" />
         <link rel="apple-touch-icon" href="/public/images/favicon-dark.png" />
@@ -56,7 +82,34 @@ async function basicLayout(
       </script>
 
       <body class="h-full">
-        ${headerHtml} ${htmlContent}
+        <div class="flex min-h-full">
+          ${sidebarHtml}
+
+          <div class="flex min-w-0 flex-1 flex-col ${isAppNavigationShown
+            ? 'pb-[calc(env(safe-area-inset-bottom)+3.5rem)] md:pb-0'
+            : ''}">
+            ${headerHtml} ${htmlContent}
+          </div>
+        </div>
+
+        <!-- Preact renders into this element, never replaces it, so the live region survives every toast -->
+        <div
+          id="toast-host"
+          aria-live="polite"
+          class="fixed bottom-4 right-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 pointer-events-none max-md:bottom-[calc(env(safe-area-inset-bottom)+4.5rem)]"
+        ></div>
+
+        <script type="module">
+          import { h, render, Fragment } from 'preact';
+
+          // Imported files need some preact globals to work
+          window.h = h;
+          window.Fragment = Fragment;
+
+          import ToastHost from '/public/components/ToastHost.js';
+
+          render(h(ToastHost, {}), document.getElementById('toast-host'));
+        </script>
 
         <script type="module">
           import { bindUploadLogoutAbort } from '/public/ts/service-worker.ts';

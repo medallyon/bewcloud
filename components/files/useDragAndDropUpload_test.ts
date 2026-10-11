@@ -199,3 +199,24 @@ Deno.test('that only a file the user chose to replace is uploaded with overwrite
     globalThis.fetch = originalFetch;
   }
 });
+
+Deno.test('that dragging an existing item around does not count as an upload drag', () => {
+  const hook = renderHook(signal('/'), signal(''), []);
+  let wasDefaultPrevented = false;
+
+  function dragEvent(types: string[]) {
+    return {
+      dataTransfer: { types },
+      preventDefault: () => wasDefaultPrevented = true,
+      stopPropagation: () => {},
+    } as unknown as DragEvent;
+  }
+
+  hook.handleDragEnter(dragEvent(['application/x-bewcloud-items']));
+  assertEquals(hook.isDraggingOver.value, false);
+  assertEquals(wasDefaultPrevented, false);
+
+  hook.handleDragEnter(dragEvent(['Files']));
+  assertEquals(hook.isDraggingOver.value, true);
+  assertEquals(wasDefaultPrevented, true);
+});

@@ -83,7 +83,7 @@ export default function CalendarViewWeek(
           return (
             <>
               <section
-                class={`flex justify-center ${isToday ? 'bg-[#51A4FB]' : 'bg-gray-900'} py-2 ${
+                class={`flex justify-center ${isToday ? 'bg-accent' : 'bg-gray-900'} py-2 ${
                   isFirstDay ? 'rounded-tl-md' : ''
                 } ${isLastDay ? 'rounded-tr-md' : ''} text-center text-xs font-semibold text-white`}
               >
